@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::patch::Patch;
+use crate::company_patch::CompanyPatch;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum CompanyEventType {
@@ -10,33 +10,13 @@ pub enum CompanyEventType {
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CompanyEventData {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub name: Patch<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub location: Patch<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub vat_id: Patch<u32>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub employees: Patch<u32>
-}
-
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct CompanyEvent {
     pub event_type: CompanyEventType,
     pub tenant_id: u32,
     pub company_id: u32,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<CompanyEventData>
+    pub payload: Option<CompanyPatch>
 }
 
 #[cfg(test)]
@@ -44,7 +24,7 @@ mod tests {
     use std::fmt::Debug;
     use serde::{Deserialize, Serialize};
     use crate::patch::Patch;
-    use crate::company_event::{CompanyEvent, CompanyEventData, CompanyEventType};
+    use crate::company_event::{CompanyEvent, CompanyPatch, CompanyEventType};
 
     #[test]
     pub fn test_serde_company_create_event() {
@@ -52,7 +32,7 @@ mod tests {
             event_type: CompanyEventType::Create,
             tenant_id: 1,
             company_id: 10,
-            payload: Some(CompanyEventData{
+            payload: Some(CompanyPatch {
                 name: Patch::Value(String::from("Foo & Bar")),
                 location: Patch::Value(String::from("Nowhere")),
                 vat_id: Patch::Value(12345),
@@ -71,7 +51,7 @@ mod tests {
             event_type: CompanyEventType::Update,
             tenant_id: 1,
             company_id: 10,
-            payload: Some(CompanyEventData{
+            payload: Some(CompanyPatch {
                 name: Patch::Null,
                 location: Patch::Absent,
                 vat_id: Patch::Null,
