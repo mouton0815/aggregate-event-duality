@@ -33,7 +33,7 @@ mod tests {
             tenant_id: 1,
             company_id: 10,
             payload: Some(CompanyPatch {
-                name: Patch::Value(String::from("Foo & Bar")),
+                name: Some(String::from("Foo & Bar")),
                 location: Patch::Value(String::from("Nowhere")),
                 vat_id: Patch::Value(12345),
                 employees: Patch::Value(75)
@@ -52,14 +52,14 @@ mod tests {
             tenant_id: 1,
             company_id: 10,
             payload: Some(CompanyPatch {
-                name: Patch::Null,
-                location: Patch::Absent,
+                name: None,
+                location: Patch::Null,
                 vat_id: Patch::Null,
                 employees: Patch::Absent
             })
         };
 
-        let json_ref = r#"{"eventType":"Update","tenantId":1,"companyId":10,"payload":{"name":null,"vatId":null}}"#;
+        let json_ref = r#"{"eventType":"Update","tenantId":1,"companyId":10,"payload":{"location":null,"vatId":null}}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }
