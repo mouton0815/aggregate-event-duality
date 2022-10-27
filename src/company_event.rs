@@ -32,6 +32,7 @@ pub struct CompanyEventData {
 #[serde(rename_all = "camelCase")]
 pub struct CompanyEvent {
     pub event_type: CompanyEventType,
+    pub tenant_id: u32,
     pub company_id: u32,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -49,6 +50,7 @@ mod tests {
     pub fn test_serde_company_create_event() {
         let company_ref = CompanyEvent{
             event_type: CompanyEventType::Create,
+            tenant_id: 1,
             company_id: 10,
             payload: Some(CompanyEventData{
                 name: Patch::Value(String::from("Foo & Bar")),
@@ -58,7 +60,7 @@ mod tests {
             })
         };
 
-        let json_ref = r#"{"eventType":"Create","companyId":10,"payload":{"name":"Foo & Bar","location":"Nowhere","vatId":12345,"employees":75}}"#;
+        let json_ref = r#"{"eventType":"Create","tenantId":1,"companyId":10,"payload":{"name":"Foo & Bar","location":"Nowhere","vatId":12345,"employees":75}}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }
@@ -67,6 +69,7 @@ mod tests {
     pub fn test_serde_company_update_event() {
         let company_ref = CompanyEvent{
             event_type: CompanyEventType::Update,
+            tenant_id: 1,
             company_id: 10,
             payload: Some(CompanyEventData{
                 name: Patch::Null,
@@ -76,7 +79,7 @@ mod tests {
             })
         };
 
-        let json_ref = r#"{"eventType":"Update","companyId":10,"payload":{"name":null,"vatId":null}}"#;
+        let json_ref = r#"{"eventType":"Update","tenantId":1,"companyId":10,"payload":{"name":null,"vatId":null}}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }
@@ -85,11 +88,12 @@ mod tests {
     pub fn test_serde_company_delete_event() {
         let company_ref = CompanyEvent{
             event_type: CompanyEventType::Delete,
+            tenant_id: 1,
             company_id: 10,
             payload: None
         };
 
-        let json_ref = r#"{"eventType":"Delete","companyId":10}"#;
+        let json_ref = r#"{"eventType":"Delete","tenantId":1,"companyId":10}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }
