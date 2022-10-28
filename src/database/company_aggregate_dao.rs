@@ -128,10 +128,7 @@ mod tests {
         let mut conn = create_connection();
         assert!(CompanyAggregateDAO::create_table(&conn).is_ok());
 
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        let tx = tx.unwrap();
-
+        let tx = conn.transaction().unwrap();
         assert!(CompanyAggregateDAO::insert(&tx, 10, &company10).is_ok());
         assert!(CompanyAggregateDAO::insert(&tx, 20, &company20).is_ok());
         assert!(tx.commit().is_ok());
@@ -174,10 +171,7 @@ mod tests {
         let mut conn = create_connection();
         assert!(CompanyAggregateDAO::create_table(&conn).is_ok());
 
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        let tx = tx.unwrap();
-
+        let tx = conn.transaction().unwrap();
         assert!(CompanyAggregateDAO::insert(&tx, 10, &company).is_ok());
         assert!(CompanyAggregateDAO::update(&tx, 10, &company_update).is_ok());
         assert!(tx.commit().is_ok());
@@ -206,10 +200,7 @@ mod tests {
         let mut conn = create_connection();
         assert!(CompanyAggregateDAO::create_table(&conn).is_ok());
 
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        let tx = tx.unwrap();
-
+        let tx = conn.transaction().unwrap();
         assert!(CompanyAggregateDAO::insert(&tx, 10, &company).is_ok());
         assert!(CompanyAggregateDAO::delete(&tx, 10).is_ok());
         assert!(tx.commit().is_ok());
@@ -222,14 +213,6 @@ mod tests {
         assert!(conn.is_ok());
         conn.unwrap()
     }
-
-    /*
-    fn create_transaction(conn: &mut Connection) -> Transaction {
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        tx.unwrap()
-    }
-    */
 
     fn check_results(conn: &mut Connection, ref_companies: &[&CompanyAggregate]) {
         let tx = conn.transaction();
