@@ -103,9 +103,9 @@ impl CompanyAggregateDAO {
 
 #[cfg(test)]
 mod tests {
-    use rusqlite::{Connection, Transaction};
+    use rusqlite::{Connection, Result, Transaction};
     use crate::company_aggregate::CompanyAggregate;
-    use crate::company_aggregate_dao::CompanyAggregateDAO;
+    use crate::database::company_aggregate_dao::CompanyAggregateDAO;
     use crate::company_patch::CompanyPatch;
     use crate::patch::Patch;
 
@@ -125,10 +125,7 @@ mod tests {
             employees: Patch::Value(100)
         };
 
-        let conn = Connection::open(":memory:");
-        assert!(conn.is_ok());
-        let mut conn = conn.unwrap();
-
+        let mut conn = create_connection();
         assert!(CompanyAggregateDAO::create_table(&conn).is_ok());
 
         let tx = conn.transaction();
@@ -174,10 +171,7 @@ mod tests {
             employees: Patch::Value(100)
         };
 
-        let conn = Connection::open(":memory:");
-        assert!(conn.is_ok());
-        let mut conn = conn.unwrap();
-
+        let mut conn = create_connection();
         assert!(CompanyAggregateDAO::create_table(&conn).is_ok());
 
         let tx = conn.transaction();
@@ -209,10 +203,7 @@ mod tests {
             employees: Patch::Value(50)
         };
 
-        let conn = Connection::open(":memory:");
-        assert!(conn.is_ok());
-        let mut conn = conn.unwrap();
-
+        let mut conn = create_connection();
         assert!(CompanyAggregateDAO::create_table(&conn).is_ok());
 
         let tx = conn.transaction();
@@ -225,6 +216,20 @@ mod tests {
 
         check_results(&mut conn, &[]);
     }
+
+    fn create_connection() -> Connection {
+        let conn = Connection::open(":memory:");
+        assert!(conn.is_ok());
+        conn.unwrap()
+    }
+
+    /*
+    fn create_transaction(conn: &mut Connection) -> Transaction {
+        let tx = conn.transaction();
+        assert!(tx.is_ok());
+        tx.unwrap()
+    }
+    */
 
     fn check_results(conn: &mut Connection, ref_companies: &[&CompanyAggregate]) {
         let tx = conn.transaction();
