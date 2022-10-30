@@ -1,3 +1,5 @@
+// TODO: @deprecated
+
 use serde::{Serialize, Deserialize};
 use crate::patch::Patch;
 

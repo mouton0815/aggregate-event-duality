@@ -62,8 +62,7 @@ impl CompanyEventDAO {
 #[cfg(test)]
 mod tests {
     use rusqlite::{Connection, Transaction};
-    use crate::company_event::{CompanyEvent, CompanyEventType};
-    use crate::company_patch::CompanyPatch;
+    use crate::company_event::{CompanyEvent, CompanyData};
     use crate::database::company_event_dao::CompanyEventDAO;
     use crate::patch::Patch;
 
@@ -119,10 +118,9 @@ mod tests {
 
     fn create_event() -> CompanyEvent {
         CompanyEvent{
-            event_type: CompanyEventType::Update,
             tenant_id: 1,
             company_id: 10,
-            payload: Some(CompanyPatch {
+            data: Patch::Value(CompanyData {
                 name: Some(String::from("Foo")),
                 location: Patch::Absent,
                 vat_id: Patch::Value(124),

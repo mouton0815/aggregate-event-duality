@@ -1,22 +1,35 @@
+// TODO: payload => data ?
 use serde::{Serialize, Deserialize};
-use crate::company_patch::CompanyPatch;
+use crate::patch::Patch;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub enum CompanyEventType {
-    Create,
-    Update,
-    Delete
+#[serde(rename_all = "camelCase")]
+pub struct CompanyData {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>, // Name can be updated or left as is, but not deleted
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Patch::is_absent")]
+    pub location: Patch<String>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Patch::is_absent")]
+    pub vat_id: Patch<u32>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Patch::is_absent")]
+    pub employees: Patch<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanyEvent {
-    pub event_type: CompanyEventType,
     pub tenant_id: u32,
     pub company_id: u32,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<CompanyPatch>
+    #[serde(default)]
+    pub data: Patch<CompanyData>
 }
 
 #[cfg(test)]
@@ -24,15 +37,14 @@ mod tests {
     use std::fmt::Debug;
     use serde::{Deserialize, Serialize};
     use crate::patch::Patch;
-    use crate::company_event::{CompanyEvent, CompanyPatch, CompanyEventType};
+    use crate::company_event::{CompanyEvent, CompanyData};
 
     #[test]
-    pub fn test_serde_company_create_event() {
+    pub fn test_serde_company_event_create() {
         let company_ref = CompanyEvent{
-            event_type: CompanyEventType::Create,
             tenant_id: 1,
             company_id: 10,
-            payload: Some(CompanyPatch {
+            data: Patch::Value(CompanyData {
                 name: Some(String::from("Foo & Bar")),
                 location: Patch::Value(String::from("Nowhere")),
                 vat_id: Patch::Value(12345),
@@ -40,18 +52,17 @@ mod tests {
             })
         };
 
-        let json_ref = r#"{"eventType":"Create","tenantId":1,"companyId":10,"payload":{"name":"Foo & Bar","location":"Nowhere","vatId":12345,"employees":75}}"#;
+        let json_ref = r#"{"tenantId":1,"companyId":10,"data":{"name":"Foo & Bar","location":"Nowhere","vatId":12345,"employees":75}}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }
 
     #[test]
-    pub fn test_serde_company_update_event() {
+    pub fn test_serde_company_event_update() {
         let company_ref = CompanyEvent{
-            event_type: CompanyEventType::Update,
             tenant_id: 1,
             company_id: 10,
-            payload: Some(CompanyPatch {
+            data: Patch::Value(CompanyData {
                 name: None,
                 location: Patch::Null,
                 vat_id: Patch::Null,
@@ -59,21 +70,20 @@ mod tests {
             })
         };
 
-        let json_ref = r#"{"eventType":"Update","tenantId":1,"companyId":10,"payload":{"location":null,"vatId":null}}"#;
+        let json_ref = r#"{"tenantId":1,"companyId":10,"data":{"location":null,"vatId":null}}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }
 
     #[test]
-    pub fn test_serde_company_delete_event() {
+    pub fn test_serde_company_event_delete() {
         let company_ref = CompanyEvent{
-            event_type: CompanyEventType::Delete,
             tenant_id: 1,
             company_id: 10,
-            payload: None
+            data: Patch::Null
         };
 
-        let json_ref = r#"{"eventType":"Delete","tenantId":1,"companyId":10}"#;
+        let json_ref = r#"{"tenantId":1,"companyId":10,"data":null}"#;
 
         serde_and_verify(&company_ref, json_ref);
     }

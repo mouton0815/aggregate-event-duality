@@ -1,7 +1,7 @@
 use const_format::formatcp;
 use rusqlite::{Connection, params, Result, ToSql, Transaction};
 use crate::company_aggregate::CompanyAggregate;
-use crate::company_patch::CompanyPatch;
+use crate::company_event::CompanyData;
 
 const COMPANY_AGGREGATE_TABLE : &'static str = "company_aggregate";
 
@@ -42,13 +42,13 @@ impl CompanyAggregateDAO {
         Ok(())
     }
 
-    pub fn insert(tx: &Transaction, company_id: u32, company: &CompanyPatch) -> Result<()> {
+    pub fn insert(tx: &Transaction, company_id: u32, company: &CompanyData) -> Result<()> {
         let values = params![company_id, company.name, company.location, company.vat_id, company.employees];
         tx.execute(INSERT_COMPANY, values)?;
         Ok(())
     }
 
-    pub fn update(tx: &Transaction, company_id: u32, company: &CompanyPatch) -> Result<()> {
+    pub fn update(tx: &Transaction, company_id: u32, company: &CompanyData) -> Result<()> {
         let mut columns = Vec::new();
         let mut values: Vec<&dyn ToSql> = Vec::new();
         if !company.name.is_none() {
@@ -105,20 +105,20 @@ impl CompanyAggregateDAO {
 mod tests {
     use rusqlite::{Connection, Result, Transaction};
     use crate::company_aggregate::CompanyAggregate;
+    use crate::company_event::CompanyData;
     use crate::database::company_aggregate_dao::CompanyAggregateDAO;
-    use crate::company_patch::CompanyPatch;
     use crate::patch::Patch;
 
     #[test]
     fn test_insert() {
-        let company10 = CompanyPatch{
+        let company10 = CompanyData{
             name: Some(String::from("Foo")),
             location: Patch::Value(String::from("Germany")),
             vat_id: Patch::Value(123),
             employees: Patch::Value(50)
         };
 
-        let company20 = CompanyPatch{
+        let company20 = CompanyData{
             name: Some(String::from("Baz")),
             location: Patch::Value(String::from("Spain")),
             vat_id: Patch::Absent,
@@ -154,14 +154,14 @@ mod tests {
 
     #[test]
     fn test_update() {
-        let company = CompanyPatch{
+        let company = CompanyData{
             name: Some(String::from("Foo")),
             location: Patch::Value(String::from("Germany")),
             vat_id: Patch::Value(123),
             employees: Patch::Value(50)
         };
 
-        let company_update = CompanyPatch{
+        let company_update = CompanyData{
             name: None,
             location: Patch::Null,
             vat_id: Patch::Absent,
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let company = CompanyPatch{
+        let company = CompanyData{
             name: Some(String::from("Foo")),
             location: Patch::Value(String::from("Germany")),
             vat_id: Patch::Value(123),
