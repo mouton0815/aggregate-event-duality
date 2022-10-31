@@ -1,6 +1,6 @@
 use std::error::Error;
 use rusqlite::{Connection, Transaction};
-use crate::database::company_aggregate_dao::CompanyAggregateDAO;
+use crate::database::company_aggregate_dao::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, update_company_aggregate};
 use crate::database::company_event_dao::{create_company_event_table, insert_company_event};
 use crate::database::revision_dao::{create_revision_table, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
@@ -16,7 +16,7 @@ pub struct CompanyAggregator {
 impl CompanyAggregator {
     pub fn new(db_path: &str) -> Result<CompanyAggregator, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
-        CompanyAggregateDAO::create_table(&conn)?;
+        create_company_aggregate_table(&conn)?;
         create_company_event_table(&conn)?;
         create_revision_table(&conn)?;
         Ok(CompanyAggregator{ conn })
@@ -24,8 +24,8 @@ impl CompanyAggregator {
 
     pub fn create(&mut self, company: &CompanyPost) -> Result<CompanyAggregate, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let company_id = CompanyAggregateDAO::insert(&tx, &company)?;
-        let aggregate = CompanyAggregateDAO::read(&tx, company_id)?;
+        let company_id = insert_company_aggregate(&tx, &company)?;
+        let aggregate = read_company_aggregate(&tx, company_id)?;
         let event = Self::create_event_for_post(company_id, company);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
@@ -34,8 +34,8 @@ impl CompanyAggregator {
 
     pub fn update(&mut self, company_id: u32, company: &CompanyPut) -> Result<CompanyAggregate, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        CompanyAggregateDAO::update(&tx, company_id, &company)?;
-        let aggregate = CompanyAggregateDAO::read(&tx, company_id)?;
+        update_company_aggregate(&tx, company_id, &company)?;
+        let aggregate = read_company_aggregate(&tx, company_id)?;
         let event = Self::create_event_for_put(company_id, aggregate.tenant_id, company);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
@@ -44,8 +44,8 @@ impl CompanyAggregator {
 
     pub fn delete(&mut self, company_id: u32) -> Result<CompanyAggregate, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let aggregate = CompanyAggregateDAO::read(&tx, company_id)?;
-        CompanyAggregateDAO::delete(&tx, company_id)?;
+        let aggregate = read_company_aggregate(&tx, company_id)?;
+        delete_company_aggregate(&tx, company_id)?;
         let event = Self::create_event_for_delete(company_id, aggregate.tenant_id);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
