@@ -19,7 +19,7 @@ pub struct CompanyAggregate {
 
 #[cfg(test)]
 mod tests {
-    use crate::company_aggregate::CompanyAggregate;
+    use crate::domain::company_aggregate::CompanyAggregate;
 
     #[test]
     pub fn test_serde_company_aggregate() {

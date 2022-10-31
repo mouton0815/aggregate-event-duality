@@ -1,7 +1,6 @@
 use const_format::formatcp;
 use rusqlite::{Connection, params, Result, ToSql, Transaction};
-use crate::company_aggregate::CompanyAggregate;
-use crate::company_event::CompanyData;
+use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_post::CompanyPost;
 use crate::domain::company_put::CompanyPut;
 
@@ -132,9 +131,8 @@ impl CompanyAggregateDAO {
 #[cfg(test)]
 mod tests {
     use rusqlite::{Connection, Result, Transaction};
-    use crate::company_aggregate::CompanyAggregate;
-    use crate::company_event::CompanyData;
     use crate::database::company_aggregate_dao::CompanyAggregateDAO;
+    use crate::domain::company_aggregate::CompanyAggregate;
     use crate::domain::company_post::CompanyPost;
     use crate::domain::company_put::CompanyPut;
     use crate::patch::Patch;

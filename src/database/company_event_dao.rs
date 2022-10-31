@@ -1,6 +1,6 @@
 use const_format::formatcp;
 use rusqlite::{Connection, params, Result, Transaction};
-use crate::company_event::CompanyEvent;
+use crate::domain::company_event::CompanyEvent;
 
 const COMPANY_EVENT_TABLE : &'static str = "company_event";
 
@@ -62,7 +62,7 @@ impl CompanyEventDAO {
 #[cfg(test)]
 mod tests {
     use rusqlite::{Connection, Transaction};
-    use crate::company_event::{CompanyEvent, CompanyData};
+    use crate::domain::company_event::{CompanyEvent, CompanyData};
     use crate::database::company_event_dao::CompanyEventDAO;
     use crate::patch::Patch;
 

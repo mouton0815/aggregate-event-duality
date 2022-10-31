@@ -1,7 +1,7 @@
 use std::error::Error;
 use rusqlite::Connection;
-use crate::company_aggregate::CompanyAggregate;
 use crate::database::company_aggregate_dao::CompanyAggregateDAO;
+use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_post::CompanyPost;
 use crate::domain::company_put::CompanyPut;
 
@@ -43,7 +43,7 @@ impl CompanyAggregator {
 #[cfg(test)]
 mod tests {
     use crate::aggregator::company_aggregator::CompanyAggregator;
-    use crate::company_aggregate::CompanyAggregate;
+    use crate::domain::company_aggregate::CompanyAggregate;
     use crate::domain::company_post::CompanyPost;
     use crate::domain::company_put::CompanyPut;
     use crate::patch::Patch;

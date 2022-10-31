@@ -37,7 +37,7 @@ mod tests {
     use std::fmt::Debug;
     use serde::{Deserialize, Serialize};
     use crate::patch::Patch;
-    use crate::company_event::{CompanyEvent, CompanyData};
+    use crate::domain::company_event::{CompanyEvent, CompanyData};
 
     #[test]
     pub fn test_serde_company_event_create() {
