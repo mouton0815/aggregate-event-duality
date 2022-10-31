@@ -1,6 +1,6 @@
 // TODO: payload => data ?
 use serde::{Serialize, Deserialize};
-use crate::patch::Patch;
+use crate::util::patch::Patch;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +36,7 @@ pub struct CompanyEvent {
 mod tests {
     use std::fmt::Debug;
     use serde::{Deserialize, Serialize};
-    use crate::patch::Patch;
+    use crate::util::patch::Patch;
     use crate::domain::company_event::{CompanyEvent, CompanyData};
 
     #[test]

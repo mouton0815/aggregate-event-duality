@@ -64,7 +64,7 @@ mod tests {
     use rusqlite::{Connection, Transaction};
     use crate::domain::company_event::{CompanyEvent, CompanyData};
     use crate::database::company_event_dao::CompanyEventDAO;
-    use crate::patch::Patch;
+    use crate::util::patch::Patch;
 
     #[test]
     fn test_insert() {

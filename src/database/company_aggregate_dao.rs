@@ -135,7 +135,7 @@ mod tests {
     use crate::domain::company_aggregate::CompanyAggregate;
     use crate::domain::company_post::CompanyPost;
     use crate::domain::company_put::CompanyPut;
-    use crate::patch::Patch;
+    use crate::util::patch::Patch;
 
     #[test]
     fn test_insert() {

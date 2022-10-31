@@ -1,7 +1,7 @@
 // TODO: Rather patch?
 
 use serde::{Serialize, Deserialize};
-use crate::patch::Patch;
+use crate::util::patch::Patch;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -30,7 +30,7 @@ pub struct CompanyPut {
 #[cfg(test)]
 mod tests {
     use crate::domain::company_put::CompanyPut;
-    use crate::patch::Patch;
+    use crate::util::patch::Patch;
 
     #[test]
     pub fn test_serde_company_create_event() {

@@ -67,7 +67,7 @@ impl<T: ToSql> ToSql for Patch<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::patch::Patch;
+    use crate::util::patch::Patch;
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
