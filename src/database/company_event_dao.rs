@@ -34,10 +34,10 @@ impl CompanyEventDAO {
         Ok(())
     }
 
-    pub fn insert(tx: &Transaction, event: &CompanyEvent) -> Result<i64> {
+    pub fn insert(tx: &Transaction, event: &CompanyEvent) -> Result<u32> {
         let json = serde_json::to_string(&event);
         tx.execute(INSERT_EVENT, params![json.unwrap()])?;
-        Ok(tx.last_insert_rowid())
+        Ok(tx.last_insert_rowid() as u32)
     }
 
     pub fn get_from(tx: &Transaction, from_revision: i64) -> Result<Vec<CompanyEvent>> {

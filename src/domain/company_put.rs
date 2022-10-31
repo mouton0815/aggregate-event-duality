@@ -6,11 +6,13 @@ use crate::patch::Patch;
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanyPut {
-    pub tenant_id: u32,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<u32>, // tenant_id can be updated or left as is, but not deleted
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>, // Name can be updated or left as is, but not deleted
+    pub name: Option<String>, // name can be updated or left as is, but not deleted
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Patch::is_absent")]
@@ -33,7 +35,7 @@ mod tests {
     #[test]
     pub fn test_serde_company_create_event() {
         let company_ref = CompanyPut {
-            tenant_id: 10,
+            tenant_id: Some(10),
             name: Some(String::from("Foo & Bar")),
             location: Patch::Absent,
             vat_id: Patch::Null,

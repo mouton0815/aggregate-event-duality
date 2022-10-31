@@ -1,2 +1,2 @@
-mod company_post;
-mod company_put;
+pub mod company_post;
+pub mod company_put;

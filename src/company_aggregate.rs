@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 #[serde(rename_all = "camelCase")]
 pub struct CompanyAggregate {
     pub company_id: u32,
+    pub tenant_id: u32,
     pub name: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -24,12 +25,13 @@ mod tests {
     pub fn test_serde_company_aggregate() {
         let company_ref = CompanyAggregate{
             company_id: 10,
+            tenant_id: 1,
             name: String::from("Foo & Bar"),
             location: Some(String::from("Nowhere")),
             vat_id: None,
             employees: Some(75)
         };
-        let json_ref = r#"{"companyId":10,"name":"Foo & Bar","location":"Nowhere","employees":75}"#;
+        let json_ref = r#"{"companyId":10,"tenantId":1,"name":"Foo & Bar","location":"Nowhere","employees":75}"#;
 
         let json = serde_json::to_string(&company_ref);
         assert!(json.is_ok());
