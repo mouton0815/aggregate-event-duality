@@ -5,8 +5,7 @@ use crate::database::company_event_table::{create_company_event_table, insert_co
 use crate::database::revision_table::{create_revision_table, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_event::{CompanyData, CompanyEvent};
-use crate::domain::company_post::CompanyPost;
-use crate::domain::company_put::CompanyPut;
+use crate::domain::company_rest::{CompanyPost, CompanyPut};
 use crate::util::patch::Patch;
 
 pub struct CompanyAggregator {
@@ -109,8 +108,7 @@ mod tests {
     use crate::database::company_event_table::read_company_events;
     use crate::database::revision_table::read_company_revision;
     use crate::domain::company_aggregate::CompanyAggregate;
-    use crate::domain::company_post::CompanyPost;
-    use crate::domain::company_put::CompanyPut;
+    use crate::domain::company_rest::{CompanyPost, CompanyPut};
     use crate::util::patch::Patch;
 
     #[test]

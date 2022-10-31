@@ -1,8 +1,7 @@
 use const_format::formatcp;
 use rusqlite::{Connection, params, Result, ToSql, Transaction};
 use crate::domain::company_aggregate::CompanyAggregate;
-use crate::domain::company_post::CompanyPost;
-use crate::domain::company_put::CompanyPut;
+use crate::domain::company_rest::{CompanyPost, CompanyPut};
 
 const COMPANY_AGGREGATE_TABLE : &'static str = "company_aggregate";
 
@@ -127,8 +126,7 @@ mod tests {
     use rusqlite::Connection;
     use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
     use crate::domain::company_aggregate::CompanyAggregate;
-    use crate::domain::company_post::CompanyPost;
-    use crate::domain::company_put::CompanyPut;
+    use crate::domain::company_rest::{CompanyPost, CompanyPut};
     use crate::util::patch::Patch;
 
     #[test]
