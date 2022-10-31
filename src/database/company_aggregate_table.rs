@@ -125,7 +125,7 @@ pub fn read_company_aggregate(tx: &Transaction, company_id: u32) -> Result<Compa
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::company_aggregate_dao::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
+    use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
     use crate::domain::company_aggregate::CompanyAggregate;
     use crate::domain::company_post::CompanyPost;
     use crate::domain::company_put::CompanyPut;

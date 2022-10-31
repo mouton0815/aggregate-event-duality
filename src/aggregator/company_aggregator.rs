@@ -1,8 +1,8 @@
 use std::error::Error;
 use rusqlite::{Connection, Transaction};
-use crate::database::company_aggregate_dao::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, update_company_aggregate};
-use crate::database::company_event_dao::{create_company_event_table, insert_company_event};
-use crate::database::revision_dao::{create_revision_table, upsert_company_revision};
+use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, update_company_aggregate};
+use crate::database::company_event_table::{create_company_event_table, insert_company_event};
+use crate::database::revision_table::{create_revision_table, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_event::{CompanyData, CompanyEvent};
 use crate::domain::company_post::CompanyPost;
@@ -106,8 +106,8 @@ impl CompanyAggregator {
 #[cfg(test)]
 mod tests {
     use crate::aggregator::company_aggregator::CompanyAggregator;
-    use crate::database::company_event_dao::read_company_events;
-    use crate::database::revision_dao::read_company_revision;
+    use crate::database::company_event_table::read_company_events;
+    use crate::database::revision_table::read_company_revision;
     use crate::domain::company_aggregate::CompanyAggregate;
     use crate::domain::company_post::CompanyPost;
     use crate::domain::company_put::CompanyPut;

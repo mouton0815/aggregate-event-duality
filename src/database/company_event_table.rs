@@ -49,7 +49,7 @@ pub fn read_company_events(tx: &Transaction, from_revision: i64) -> Result<Vec<S
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::company_event_dao::{create_company_event_table, insert_company_event, read_company_events};
+    use crate::database::company_event_table::{create_company_event_table, insert_company_event, read_company_events};
 
     #[test]
     fn test_insert() {

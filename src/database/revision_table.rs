@@ -46,7 +46,7 @@ pub fn read_company_revision(tx: &Transaction) -> Result<u32> {
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::revision_dao::{create_revision_table, read_company_revision, upsert_company_revision};
+    use crate::database::revision_table::{create_revision_table, read_company_revision, upsert_company_revision};
 
     #[test]
     fn test_upsert_initial() {
