@@ -1,7 +1,6 @@
 use const_format::formatcp;
 use rusqlite::{Connection, params, Result, Transaction};
 
-//#[derive(Copy, Clone)]
 enum RevisionType {
     Company = 1
 }
@@ -29,38 +28,33 @@ const SELECT_REVISION : &'static str = formatcp!("
     REVISION_TABLE
 );
 
-pub struct CompanyRevisionDAO {
+pub fn create_revision_table(conn: &Connection) -> Result<()> {
+    conn.execute(CREATE_REVISION_TABLE, [])?;
+    Ok(())
 }
 
-impl CompanyRevisionDAO {
-    pub fn create_table(conn: &Connection) -> Result<()> {
-        conn.execute(CREATE_REVISION_TABLE, [])?;
-        Ok(())
-    }
+pub fn upsert_company_revision(tx: &Transaction, revision: u32) -> Result<()> {
+    tx.execute(UPSERT_REVISION, params![RevisionType::Company as u32, revision])?;
+    Ok(())
+}
 
-    pub fn upsert_company_revision(tx: &Transaction, revision: u32) -> Result<()> {
-        tx.execute(UPSERT_REVISION, params![RevisionType::Company as u32, revision])?;
-        Ok(())
-    }
-
-    pub fn get_company_revision(tx: &Transaction) -> Result<u32> {
-        let mut stmt = tx.prepare(SELECT_REVISION)?;
-        stmt.query_row([RevisionType::Company as u32], |row| row.get(0))
-    }
+pub fn read_company_revision(tx: &Transaction) -> Result<u32> {
+    let mut stmt = tx.prepare(SELECT_REVISION)?;
+    stmt.query_row([RevisionType::Company as u32], |row| row.get(0))
 }
 
 #[cfg(test)]
 mod tests {
-    use rusqlite::{Connection, Result, Transaction};
-    use crate::database::revision_dao::{CompanyRevisionDAO, RevisionType};
+    use rusqlite::Connection;
+    use crate::database::revision_dao::{create_revision_table, read_company_revision, upsert_company_revision};
 
     #[test]
     fn test_upsert_initial() {
         let mut conn = create_connection();
-        assert!(CompanyRevisionDAO::create_table(&conn).is_ok());
+        assert!(create_revision_table(&conn).is_ok());
 
         let tx = conn.transaction().unwrap();
-        assert!(CompanyRevisionDAO::upsert_company_revision(&tx, 100).is_ok());
+        assert!(upsert_company_revision(&tx, 100).is_ok());
         assert!(tx.commit().is_ok());
 
         check_result(&mut conn, 100);
@@ -69,11 +63,11 @@ mod tests {
     #[test]
     fn test_upsert_conflict() {
         let mut conn = create_connection();
-        assert!(CompanyRevisionDAO::create_table(&conn).is_ok());
+        assert!(create_revision_table(&conn).is_ok());
 
         let tx = conn.transaction().unwrap();
-        assert!(CompanyRevisionDAO::upsert_company_revision(&tx, 100).is_ok());
-        assert!(CompanyRevisionDAO::upsert_company_revision(&tx, 101).is_ok());
+        assert!(upsert_company_revision(&tx, 100).is_ok());
+        assert!(upsert_company_revision(&tx, 101).is_ok());
         assert!(tx.commit().is_ok());
 
         check_result(&mut conn, 101);
@@ -87,7 +81,7 @@ mod tests {
 
     fn check_result(conn: &mut Connection, ref_revision: u32) {
         let tx = conn.transaction().unwrap();
-        let revision = CompanyRevisionDAO::get_company_revision(&tx);
+        let revision = read_company_revision(&tx);
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), ref_revision);

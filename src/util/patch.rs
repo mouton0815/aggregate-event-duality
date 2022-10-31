@@ -2,7 +2,7 @@ use rusqlite::ToSql;
 use rusqlite::types::ToSqlOutput;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-#[derive(PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub enum Patch<T> {
     Value(T), // Set the aggregate value to the value of T
     Null,     // Set the aggregate value to null

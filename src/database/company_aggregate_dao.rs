@@ -130,7 +130,7 @@ impl CompanyAggregateDAO {
 
 #[cfg(test)]
 mod tests {
-    use rusqlite::{Connection, Result, Transaction};
+    use rusqlite::Connection;
     use crate::database::company_aggregate_dao::CompanyAggregateDAO;
     use crate::domain::company_aggregate::CompanyAggregate;
     use crate::domain::company_post::CompanyPost;
