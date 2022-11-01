@@ -42,15 +42,16 @@ pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32
     }
 }
 
-pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<impl Reply, Infallible> {
+pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().await;
     return match aggregator.get_all() {
         Ok(result) => {
-            Ok(reply::with_status(reply::json(&result), StatusCode::CREATED))
+            let (revision, companies) = result;
+            Ok(Box::new(reply::with_header(reply::json(&companies), "X-Company-Revision", revision)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)) // TODO: Better errors
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))) // TODO: Better errors
         }
     }
 }

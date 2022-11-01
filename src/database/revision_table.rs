@@ -40,7 +40,11 @@ pub fn upsert_company_revision(tx: &Transaction, revision: u32) -> Result<()> {
 
 pub fn read_company_revision(tx: &Transaction) -> Result<u32> {
     let mut stmt = tx.prepare(SELECT_REVISION)?;
-    stmt.query_row([RevisionType::Company as u32], |row| row.get(0))
+    let mut rows = stmt.query([RevisionType::Company as u32])?;
+    match rows.next()? {
+        Some(row) => Ok(row.get(0)?),
+        None => Ok(0)
+    }
 }
 
 #[cfg(test)]
@@ -50,9 +54,7 @@ mod tests {
 
     #[test]
     fn test_upsert_initial() {
-        let mut conn = create_connection();
-        assert!(create_revision_table(&conn).is_ok());
-
+        let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         assert!(upsert_company_revision(&tx, 100).is_ok());
         assert!(tx.commit().is_ok());
@@ -62,9 +64,7 @@ mod tests {
 
     #[test]
     fn test_upsert_conflict() {
-        let mut conn = create_connection();
-        assert!(create_revision_table(&conn).is_ok());
-
+        let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         assert!(upsert_company_revision(&tx, 100).is_ok());
         assert!(upsert_company_revision(&tx, 101).is_ok());
@@ -73,10 +73,22 @@ mod tests {
         check_result(&mut conn, 101);
     }
 
-    fn create_connection() -> Connection {
+    #[test]
+    fn test_read_empty() {
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        let revision = read_company_revision(&tx);
+        assert!(tx.commit().is_ok());
+        assert!(revision.is_ok());
+        assert_eq!(revision.unwrap(), 0);
+    }
+
+    fn create_connection_and_table() -> Connection {
         let conn = Connection::open(":memory:");
         assert!(conn.is_ok());
-        conn.unwrap()
+        let conn = conn.unwrap();
+        assert!(create_revision_table(&conn).is_ok());
+        conn
     }
 
     fn check_result(conn: &mut Connection, ref_revision: u32) {

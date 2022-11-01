@@ -2,7 +2,7 @@ use std::error::Error;
 use rusqlite::{Connection, Transaction};
 use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
 use crate::database::company_event_table::{create_company_event_table, insert_company_event};
-use crate::database::revision_table::{create_revision_table, upsert_company_revision};
+use crate::database::revision_table::{create_revision_table, read_company_revision, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_event::{CompanyData, CompanyEvent};
 use crate::domain::company_rest::{CompanyPost, CompanyPatch};
@@ -51,9 +51,11 @@ impl CompanyAggregator {
         Ok(aggregate)
     }
 
-    pub fn get_all(&mut self) -> Result<Vec<CompanyAggregate>, Box<dyn Error>> {
+    pub fn get_all(&mut self) -> Result<(u32, Vec<CompanyAggregate>), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        Ok(read_company_aggregates(&tx)?)
+        let revision = read_company_revision(&tx)?;
+        let companies = read_company_aggregates(&tx)?;
+        Ok((revision, companies))
     }
 
     fn create_event_for_post(company_id: u32, company: &CompanyPost) -> CompanyEvent {
@@ -179,6 +181,17 @@ mod tests {
     }
 
     #[test]
+    pub fn test_get_all_empty() {
+        let mut aggregator = create_aggregator();
+
+        let companies_res = aggregator.get_all();
+        assert!(companies_res.is_ok());
+
+        let company_ref = (0, Vec::new());
+        assert_eq!(companies_res.unwrap(), company_ref);
+    }
+
+    #[test]
     pub fn test_get_all() {
         let mut aggregator = create_aggregator();
 
@@ -187,7 +200,7 @@ mod tests {
         let companies_res = aggregator.get_all();
         assert!(companies_res.is_ok());
 
-        let company_ref = vec!(create_company_ref());
+        let company_ref = (1, vec!(create_company_ref()));
         assert_eq!(companies_res.unwrap(), company_ref);
     }
 
