@@ -1,4 +1,5 @@
 mod domain;
-mod aggregator;
+pub mod aggregator;
 mod database;
 mod util;
+pub mod http_server;
