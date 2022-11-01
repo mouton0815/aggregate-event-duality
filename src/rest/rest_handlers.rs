@@ -14,7 +14,6 @@ struct ErrorResult {
     error: String
 }
 
-// TODO: Pass company by reference?
 pub async fn post_company(aggregator: MutexedCompanyAggregator, company: CompanyPost) -> Result<impl Reply, Infallible> {
     let mut aggregator = aggregator.lock().await;
     return match aggregator.create(&company) {
@@ -23,21 +22,23 @@ pub async fn post_company(aggregator: MutexedCompanyAggregator, company: Company
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)) // TODO: Better errors
+            Ok(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))
         }
     }
 }
 
-// TODO: Pass company by reference?
-pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32, company: CompanyPatch) -> Result<impl Reply, Infallible> {
+pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32, company: CompanyPatch) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().await;
     return match aggregator.update(company_id, &company) {
         Ok(result) => {
-            Ok(reply::with_status(reply::json(&result), StatusCode::OK))
+            match result {
+                Some(company) => Ok(Box::new(reply::json(&company))),
+                None => Ok(Box::new(StatusCode::NOT_FOUND))
+            }
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)) // TODO: Better errors
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
         }
     }
 }

@@ -31,14 +31,18 @@ impl CompanyAggregator {
         Ok(aggregate)
     }
 
-    pub fn update(&mut self, company_id: u32, company: &CompanyPatch) -> Result<CompanyAggregate, Box<dyn Error>> {
+    pub fn update(&mut self, company_id: u32, company: &CompanyPatch) -> Result<Option<CompanyAggregate>, rusqlite::Error> {
         let tx = self.conn.transaction()?;
-        update_company_aggregate(&tx, company_id, &company)?;
-        let aggregate = read_company_aggregate(&tx, company_id)?;
-        let event = Self::create_event_for_patch(company_id, aggregate.tenant_id, company);
-        Self::write_event_and_revision(&tx, &event)?;
-        tx.commit()?;
-        Ok(aggregate)
+        if update_company_aggregate(&tx, company_id, &company)? {
+            let aggregate = read_company_aggregate(&tx, company_id)?;
+            let event = Self::create_event_for_patch(company_id, aggregate.tenant_id, company);
+            Self::write_event_and_revision(&tx, &event)?;
+            tx.commit()?;
+            Ok(Some(aggregate))
+        } else {
+            tx.rollback()?; // There should be no changes, so tx.commit() would also work
+            Ok(None)
+        }
     }
 
     pub fn delete(&mut self, company_id: u32) -> Result<CompanyAggregate, Box<dyn Error>> {
@@ -101,11 +105,17 @@ impl CompanyAggregator {
         }
     }
 
-    fn write_event_and_revision(tx: &Transaction, event: &CompanyEvent) -> Result<u32, Box<dyn Error>> {
-        let json = serde_json::to_string(&event)?;
-        let revision = insert_company_event(&tx, json.as_str())?;
-        upsert_company_revision(&tx, revision)?;
-        Ok(revision)
+    fn write_event_and_revision(tx: &Transaction, event: &CompanyEvent) -> Result<u32, rusqlite::Error> {
+        match serde_json::to_string(&event) {
+            Ok(json) => {
+                let revision = insert_company_event(&tx, json.as_str())?;
+                upsert_company_revision(&tx, revision)?;
+                Ok(revision)
+            },
+            Err(error) => {
+                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
+            }
+        }
     }
 }
 
@@ -122,7 +132,7 @@ mod tests {
     pub fn test_create() {
         let mut aggregator = create_aggregator();
 
-        let company = create_company();
+        let company = create_company_post();
         let company_res = aggregator.create(&company);
         assert!(company_res.is_ok());
 
@@ -134,17 +144,10 @@ mod tests {
 
     #[test]
     pub fn test_update() {
-        let company = create_company();
-        let company_update = CompanyPatch {
-            tenant_id: Some(20),
-            name: Some(String::from("Bar")),
-            location: Patch::Value(String::from("Nowhere")),
-            vat_id: Patch::Value(12345),
-            employees: Patch::Null
-        };
-
         let mut aggregator = create_aggregator();
 
+        let company = create_company_post();
+        let company_update = create_company_patch();
         let company_res = aggregator.create(&company);
         assert!(company_res.is_ok());
         let company_res = aggregator.update(1, &company_update);
@@ -159,16 +162,26 @@ mod tests {
             employees: None
         };
 
-        assert_eq!(company_res.unwrap(), company_ref);
+        assert_eq!(company_res.unwrap(), Some(company_ref));
 
         check_events_and_revision(&mut aggregator, 2);
+    }
+
+    #[test]
+    pub fn test_update_missing() {
+        let mut aggregator = create_aggregator();
+
+        let company_update = create_company_patch();
+        let company_res = aggregator.update(1, &company_update);
+        assert!(company_res.is_ok());
+        assert_eq!(company_res.unwrap(), None);
     }
 
     #[test]
     pub fn test_delete() {
         let mut aggregator = create_aggregator();
 
-        let company = create_company();
+        let company = create_company_post();
         let company_res = aggregator.create(&company);
         assert!(company_res.is_ok());
         let company_res = aggregator.delete(1);
@@ -195,7 +208,7 @@ mod tests {
     pub fn test_get_all() {
         let mut aggregator = create_aggregator();
 
-        let company = create_company();
+        let company = create_company_post();
         assert!(aggregator.create(&company).is_ok());
         let companies_res = aggregator.get_all();
         assert!(companies_res.is_ok());
@@ -210,13 +223,23 @@ mod tests {
         aggregator.unwrap()
     }
 
-    fn create_company() -> CompanyPost {
+    fn create_company_post() -> CompanyPost {
         CompanyPost {
             tenant_id: 10,
             name: String::from("Foo"),
             location: None,
             vat_id: None,
             employees: Some(75)
+        }
+    }
+
+    fn create_company_patch() -> CompanyPatch {
+        CompanyPatch {
+            tenant_id: Some(20),
+            name: Some(String::from("Bar")),
+            location: Patch::Value(String::from("Nowhere")),
+            vat_id: Patch::Value(12345),
+            employees: Patch::Null
         }
     }
 

@@ -1,5 +1,5 @@
 use const_format::formatcp;
-use rusqlite::{Connection, params, Result, ToSql, Transaction};
+use rusqlite::{Connection, Error, params, Result, Row, ToSql, Transaction};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_rest::{CompanyPost, CompanyPatch};
 
@@ -49,7 +49,7 @@ pub fn insert_company_aggregate(tx: &Transaction, company: &CompanyPost) -> Resu
     Ok(tx.last_insert_rowid() as u32)
 }
 
-pub fn update_company_aggregate(tx: &Transaction, company_id: u32, company: &CompanyPatch) -> Result<()> {
+pub fn update_company_aggregate(tx: &Transaction, company_id: u32, company: &CompanyPatch) -> Result<bool> {
     let mut columns = Vec::new();
     let mut values: Vec<&dyn ToSql> = Vec::new();
     if !company.tenant_id.is_none() {
@@ -73,13 +73,13 @@ pub fn update_company_aggregate(tx: &Transaction, company_id: u32, company: &Com
         values.push(&company.employees);
     }
     if columns.is_empty() {
-        println!("Do not run update query because all non-id values are missing");
-        return Ok(())
+        eprintln!("Do not run update query because all non-id values are missing"); // TODO: Use logging
+        return Err(Error::InvalidParameterCount(0, 5));
     }
     let query = format!("UPDATE {} SET {} WHERE companyId=?", COMPANY_AGGREGATE_TABLE, columns.join(",").as_str());
     values.push(&company_id);
-    tx.execute(query.as_str(), values.as_slice())?;
-    Ok(())
+    let row_count = tx.execute(query.as_str(), values.as_slice())?;
+    Ok(row_count == 1)
 }
 
 pub fn delete_company_aggregate(tx: &Transaction, company_id: u32) -> Result<()> {
@@ -90,14 +90,7 @@ pub fn delete_company_aggregate(tx: &Transaction, company_id: u32) -> Result<()>
 pub fn read_company_aggregates(tx: &Transaction) -> Result<Vec<CompanyAggregate>> {
     let mut stmt = tx.prepare(SELECT_COMPANIES)?;
     let rows = stmt.query_map([], |row| {
-        Ok(CompanyAggregate {
-            company_id: row.get(0)?,
-            tenant_id: row.get(1)?,
-            name: row.get(2)?,
-            location: row.get(3)?,
-            vat_id: row.get(4)?,
-            employees: row.get(5)?
-        })
+        row_to_company_aggregate(row)
     })?;
     let mut companies = Vec::new();
     for row in rows {
@@ -109,16 +102,20 @@ pub fn read_company_aggregates(tx: &Transaction) -> Result<Vec<CompanyAggregate>
 pub fn read_company_aggregate(tx: &Transaction, company_id: u32) -> Result<CompanyAggregate> {
     let mut stmt = tx.prepare(SELECT_COMPANY)?;
     let row = stmt.query_row([company_id], |row| {
-        Ok(CompanyAggregate {
-            company_id: row.get(0)?,
-            tenant_id: row.get(1)?,
-            name: row.get(2)?,
-            location: row.get(3)?,
-            vat_id: row.get(4)?,
-            employees: row.get(5)?
-        })
+        row_to_company_aggregate(row)
     })?;
     Ok(row)
+}
+
+fn row_to_company_aggregate(row: &Row) -> Result<CompanyAggregate> {
+    Ok(CompanyAggregate {
+        company_id: row.get(0)?,
+        tenant_id: row.get(1)?,
+        name: row.get(2)?,
+        location: row.get(3)?,
+        vat_id: row.get(4)?,
+        employees: row.get(5)?
+    })
 }
 
 #[cfg(test)]
@@ -146,9 +143,7 @@ mod tests {
             employees: Some(100)
         };
 
-        let mut conn = create_connection();
-        assert!(create_company_aggregate_table(&conn).is_ok());
-
+        let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         let company_id1 = insert_company_aggregate(&tx, &company1);
         assert!(company_id1.is_ok());
@@ -199,12 +194,12 @@ mod tests {
             employees: Patch::Value(100)
         };
 
-        let mut conn = create_connection();
-        assert!(create_company_aggregate_table(&conn).is_ok());
-
+        let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         assert!(insert_company_aggregate(&tx, &company).is_ok());
-        assert!(update_company_aggregate(&tx, 1, &company_update).is_ok());
+        let result = update_company_aggregate(&tx, 1, &company_update);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), true);
         assert!(tx.commit().is_ok());
 
         let ref_companies = [
@@ -220,6 +215,23 @@ mod tests {
         check_results(&mut conn, &ref_companies);
         check_single_result(&mut conn, 1, ref_companies[0]);
     }
+    #[test]
+
+    fn test_update_missing() {
+        let company_update = CompanyPatch {
+            tenant_id: Some(20),
+            name: None,
+            location: Patch::Null,
+            vat_id: Patch::Absent,
+            employees: Patch::Value(100)
+        };
+
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        let result = update_company_aggregate(&tx, 1, &company_update);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), false);
+    }
 
     #[test]
     fn test_delete() {
@@ -231,9 +243,7 @@ mod tests {
             employees: Some(50)
         };
 
-        let mut conn = create_connection();
-        assert!(create_company_aggregate_table(&conn).is_ok());
-
+        let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         assert!(insert_company_aggregate(&tx, &company).is_ok());
         assert!(delete_company_aggregate(&tx, 1).is_ok());
@@ -242,10 +252,12 @@ mod tests {
         check_results(&mut conn, &[]);
     }
 
-    fn create_connection() -> Connection {
+    fn create_connection_and_table() -> Connection {
         let conn = Connection::open(":memory:");
         assert!(conn.is_ok());
-        conn.unwrap()
+        let conn = conn.unwrap();
+        assert!(create_company_aggregate_table(&conn).is_ok());
+        conn
     }
 
     fn check_results(conn: &mut Connection, ref_companies: &[&CompanyAggregate]) {
