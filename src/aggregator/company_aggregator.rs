@@ -1,6 +1,6 @@
 use std::error::Error;
 use rusqlite::{Connection, Transaction};
-use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, update_company_aggregate};
+use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
 use crate::database::company_event_table::{create_company_event_table, insert_company_event};
 use crate::database::revision_table::{create_revision_table, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
@@ -49,6 +49,11 @@ impl CompanyAggregator {
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
         Ok(aggregate)
+    }
+
+    pub fn get_all(&mut self) -> Result<Vec<CompanyAggregate>, Box<dyn Error>> {
+        let tx = self.conn.transaction()?;
+        Ok(read_company_aggregates(&tx)?)
     }
 
     fn create_event_for_post(company_id: u32, company: &CompanyPost) -> CompanyEvent {
@@ -113,30 +118,13 @@ mod tests {
 
     #[test]
     pub fn test_create() {
-        let company = CompanyPost {
-            tenant_id: 10,
-            name: String::from("Foo"),
-            location: None,
-            vat_id: None,
-            employees: Some(75)
-        };
+        let mut aggregator = create_aggregator();
 
-        let aggregator = CompanyAggregator::new(":memory:");
-        assert!(aggregator.is_ok());
-        let mut aggregator = aggregator.unwrap();
-
+        let company = create_company();
         let company_res = aggregator.create(&company);
         assert!(company_res.is_ok());
 
-        let company_ref = CompanyAggregate {
-            company_id: 1,
-            tenant_id: 10,
-            name: String::from("Foo"),
-            location: None,
-            vat_id: None,
-            employees: Some(75)
-        };
-
+        let company_ref = create_company_ref();
         assert_eq!(company_res.unwrap(), company_ref);
 
         check_events_and_revision(&mut aggregator, 1);
@@ -144,13 +132,7 @@ mod tests {
 
     #[test]
     pub fn test_update() {
-        let company = CompanyPost {
-            tenant_id: 10,
-            name: String::from("Foo"),
-            location: None,
-            vat_id: None,
-            employees: Some(75)
-        };
+        let company = create_company();
         let company_update = CompanyPut {
             tenant_id: Some(20),
             name: Some(String::from("Bar")),
@@ -159,9 +141,7 @@ mod tests {
             employees: Patch::Null
         };
 
-        let aggregator = CompanyAggregator::new(":memory:");
-        assert!(aggregator.is_ok());
-        let mut aggregator = aggregator.unwrap();
+        let mut aggregator = create_aggregator();
 
         let company_res = aggregator.create(&company);
         assert!(company_res.is_ok());
@@ -184,35 +164,58 @@ mod tests {
 
     #[test]
     pub fn test_delete() {
-        let company = CompanyPost {
-            tenant_id: 10,
-            name: String::from("Foo"),
-            location: None,
-            vat_id: None,
-            employees: Some(75)
-        };
+        let mut aggregator = create_aggregator();
 
-        let aggregator = CompanyAggregator::new(":memory:");
-        assert!(aggregator.is_ok());
-        let mut aggregator = aggregator.unwrap();
-
+        let company = create_company();
         let company_res = aggregator.create(&company);
         assert!(company_res.is_ok());
         let company_res = aggregator.delete(1);
         assert!(company_res.is_ok());
 
-        let company_ref = CompanyAggregate {
+        let company_ref = create_company_ref();
+        assert_eq!(company_res.unwrap(), company_ref);
+
+        check_events_and_revision(&mut aggregator, 2);
+    }
+
+    #[test]
+    pub fn test_get_all() {
+        let mut aggregator = create_aggregator();
+
+        let company = create_company();
+        assert!(aggregator.create(&company).is_ok());
+        let companies_res = aggregator.get_all();
+        assert!(companies_res.is_ok());
+
+        let company_ref = vec!(create_company_ref());
+        assert_eq!(companies_res.unwrap(), company_ref);
+    }
+
+    fn create_aggregator() -> CompanyAggregator {
+        let aggregator = CompanyAggregator::new(":memory:");
+        assert!(aggregator.is_ok());
+        aggregator.unwrap()
+    }
+
+    fn create_company() -> CompanyPost {
+        CompanyPost {
+            tenant_id: 10,
+            name: String::from("Foo"),
+            location: None,
+            vat_id: None,
+            employees: Some(75)
+        }
+    }
+
+    fn create_company_ref() -> CompanyAggregate {
+        CompanyAggregate {
             company_id: 1,
             tenant_id: 10,
             name: String::from("Foo"),
             location: None,
             vat_id: None,
             employees: Some(75)
-        };
-
-        assert_eq!(company_res.unwrap(), company_ref);
-
-        check_events_and_revision(&mut aggregator, 2);
+        }
     }
 
     fn check_events_and_revision(aggregator: &mut CompanyAggregator, revision_ref: u32) {
