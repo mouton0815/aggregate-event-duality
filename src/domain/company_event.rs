@@ -1,4 +1,3 @@
-// TODO: payload => data ?
 use serde::{Serialize, Deserialize};
 use crate::util::patch::Patch;
 

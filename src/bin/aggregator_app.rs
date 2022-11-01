@@ -11,7 +11,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let aggregator = CompanyAggregator::new(":memory:")?;
     let aggregator= Arc::new(Mutex::new(aggregator));
 
-    // TODO: Migrate to oneshot::channel ?
     let (tx, rx) = broadcast::channel(1);
 
     let handle = spawn_http_server(aggregator, rx);
