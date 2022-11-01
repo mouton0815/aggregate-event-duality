@@ -33,7 +33,7 @@ pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32
         Ok(result) => {
             match result {
                 Some(company) => Ok(Box::new(reply::json(&company))),
-                None => Ok(Box::new(StatusCode::NOT_FOUND))
+                None => Ok(Box::new(reply::with_status("Company not found", StatusCode::NOT_FOUND)))
             }
         },
         Err(error) => {
