@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::signal;
 use tokio::sync::{broadcast, Mutex};
 use aggregate_event_duality::aggregator::company_aggregator::CompanyAggregator;
-use aggregate_event_duality::http_server::{MutexedCompanyAggregator, spawn_http_server};
+use aggregate_event_duality::rest::http_server::spawn_http_server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
