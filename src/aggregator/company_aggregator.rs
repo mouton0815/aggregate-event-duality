@@ -5,7 +5,7 @@ use crate::database::company_event_table::{create_company_event_table, insert_co
 use crate::database::revision_table::{create_revision_table, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_event::{CompanyData, CompanyEvent};
-use crate::domain::company_rest::{CompanyPost, CompanyPut};
+use crate::domain::company_rest::{CompanyPost, CompanyPatch};
 use crate::util::patch::Patch;
 
 pub struct CompanyAggregator {
@@ -31,11 +31,11 @@ impl CompanyAggregator {
         Ok(aggregate)
     }
 
-    pub fn update(&mut self, company_id: u32, company: &CompanyPut) -> Result<CompanyAggregate, Box<dyn Error>> {
+    pub fn update(&mut self, company_id: u32, company: &CompanyPatch) -> Result<CompanyAggregate, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         update_company_aggregate(&tx, company_id, &company)?;
         let aggregate = read_company_aggregate(&tx, company_id)?;
-        let event = Self::create_event_for_put(company_id, aggregate.tenant_id, company);
+        let event = Self::create_event_for_patch(company_id, aggregate.tenant_id, company);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
         Ok(aggregate)
@@ -78,7 +78,7 @@ impl CompanyAggregator {
         }
     }
 
-    fn create_event_for_put(company_id: u32, tenant_id: u32, company: &CompanyPut) -> CompanyEvent {
+    fn create_event_for_patch(company_id: u32, tenant_id: u32, company: &CompanyPatch) -> CompanyEvent {
         CompanyEvent{
             company_id,
             tenant_id,
@@ -113,7 +113,7 @@ mod tests {
     use crate::database::company_event_table::read_company_events;
     use crate::database::revision_table::read_company_revision;
     use crate::domain::company_aggregate::CompanyAggregate;
-    use crate::domain::company_rest::{CompanyPost, CompanyPut};
+    use crate::domain::company_rest::{CompanyPost, CompanyPatch};
     use crate::util::patch::Patch;
 
     #[test]
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     pub fn test_update() {
         let company = create_company();
-        let company_update = CompanyPut {
+        let company_update = CompanyPatch {
             tenant_id: Some(20),
             name: Some(String::from("Bar")),
             location: Patch::Value(String::from("Nowhere")),

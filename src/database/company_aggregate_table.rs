@@ -1,7 +1,7 @@
 use const_format::formatcp;
 use rusqlite::{Connection, params, Result, ToSql, Transaction};
 use crate::domain::company_aggregate::CompanyAggregate;
-use crate::domain::company_rest::{CompanyPost, CompanyPut};
+use crate::domain::company_rest::{CompanyPost, CompanyPatch};
 
 const COMPANY_AGGREGATE_TABLE : &'static str = "company_aggregate";
 
@@ -49,7 +49,7 @@ pub fn insert_company_aggregate(tx: &Transaction, company: &CompanyPost) -> Resu
     Ok(tx.last_insert_rowid() as u32)
 }
 
-pub fn update_company_aggregate(tx: &Transaction, company_id: u32, company: &CompanyPut) -> Result<()> {
+pub fn update_company_aggregate(tx: &Transaction, company_id: u32, company: &CompanyPatch) -> Result<()> {
     let mut columns = Vec::new();
     let mut values: Vec<&dyn ToSql> = Vec::new();
     if !company.tenant_id.is_none() {
@@ -126,7 +126,7 @@ mod tests {
     use rusqlite::Connection;
     use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
     use crate::domain::company_aggregate::CompanyAggregate;
-    use crate::domain::company_rest::{CompanyPost, CompanyPut};
+    use crate::domain::company_rest::{CompanyPost, CompanyPatch};
     use crate::util::patch::Patch;
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
             employees: Some(50)
         };
 
-        let company_update = CompanyPut{
+        let company_update = CompanyPatch {
             tenant_id: Some(20),
             name: None,
             location: Patch::Null,

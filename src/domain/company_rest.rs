@@ -22,7 +22,7 @@ pub struct CompanyPost {
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CompanyPut {
+pub struct CompanyPatch {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<u32>, // tenant_id can be updated or left as is, but not deleted
@@ -46,7 +46,7 @@ pub struct CompanyPut {
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::company_rest::{CompanyPost, CompanyPut};
+    use crate::domain::company_rest::{CompanyPost, CompanyPatch};
     use crate::util::patch::Patch;
 
     #[test]
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     pub fn test_serde_company_create_event() {
-        let company_ref = CompanyPut {
+        let company_ref = CompanyPatch {
             tenant_id: Some(10),
             name: Some(String::from("Foo & Bar")),
             location: Patch::Absent,
@@ -84,7 +84,7 @@ mod tests {
         assert!(json.is_ok());
         assert_eq!(json.unwrap(), String::from(json_ref));
 
-        let company: Result<CompanyPut, serde_json::Error> = serde_json::from_str(json_ref);
+        let company: Result<CompanyPatch, serde_json::Error> = serde_json::from_str(json_ref);
         assert!(company.is_ok());
         assert_eq!(company.unwrap(), company_ref);
     }

@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use warp::http::StatusCode;
 use warp::{reply, Reply};
 use crate::aggregator::company_aggregator::CompanyAggregator;
-use crate::domain::company_rest::{CompanyPost, CompanyPut};
+use crate::domain::company_rest::{CompanyPost, CompanyPatch};
 
 pub type MutexedCompanyAggregator = Arc<Mutex<CompanyAggregator>>;
 
@@ -29,7 +29,7 @@ pub async fn post_company(aggregator: MutexedCompanyAggregator, company: Company
 }
 
 // TODO: Pass company by reference?
-pub async fn put_company(aggregator: MutexedCompanyAggregator, company_id: u32, company: CompanyPut) -> Result<impl Reply, Infallible> {
+pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32, company: CompanyPatch) -> Result<impl Reply, Infallible> {
     let mut aggregator = aggregator.lock().await;
     return match aggregator.update(company_id, &company) {
         Ok(result) => {
