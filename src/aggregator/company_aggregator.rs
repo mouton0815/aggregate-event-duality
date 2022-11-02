@@ -1,7 +1,7 @@
 use std::error::Error;
 use rusqlite::{Connection, Transaction};
 use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
-use crate::database::company_event_table::{create_company_event_table, insert_company_event};
+use crate::database::company_event_table::{create_company_event_table, insert_company_event, read_company_events};
 use crate::database::revision_table::{create_revision_table, read_company_revision, upsert_company_revision};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_event::{CompanyData, CompanyEvent};
@@ -55,11 +55,19 @@ impl CompanyAggregator {
         Ok(aggregate)
     }
 
-    pub fn get_all(&mut self) -> Result<(u32, Vec<CompanyAggregate>), Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+    pub fn get_aggregates(&mut self) -> Result<(u32, Vec<CompanyAggregate>), Box<dyn Error>> {
+        let tx = self.conn.transaction()?; // TODO: Can we have read-only transactions?
         let revision = read_company_revision(&tx)?;
         let companies = read_company_aggregates(&tx)?;
+        tx.commit()?;
         Ok((revision, companies))
+    }
+
+    pub fn get_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
+        let tx = self.conn.transaction()?; // TODO: Can we have read-only transactions?
+        let events = read_company_events(&tx, from_revision)?;
+        tx.commit()?;
+        Ok(events)
     }
 
     fn create_event_for_post(company_id: u32, company: &CompanyPost) -> CompanyEvent {
@@ -194,10 +202,10 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_all_empty() {
+    pub fn test_get_aggregates_empty() {
         let mut aggregator = create_aggregator();
 
-        let companies_res = aggregator.get_all();
+        let companies_res = aggregator.get_aggregates();
         assert!(companies_res.is_ok());
 
         let company_ref = (0, Vec::new());
@@ -205,16 +213,33 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_all() {
+    pub fn test_get_aggregates() {
         let mut aggregator = create_aggregator();
 
         let company = create_company_post();
         assert!(aggregator.create(&company).is_ok());
-        let companies_res = aggregator.get_all();
+        let companies_res = aggregator.get_aggregates();
         assert!(companies_res.is_ok());
 
         let company_ref = (1, vec!(create_company_ref()));
         assert_eq!(companies_res.unwrap(), company_ref);
+    }
+
+    #[test]
+    pub fn test_get_events() {
+        let mut aggregator = create_aggregator();
+
+        let company = create_company_post();
+        let company_update = create_company_patch();
+        assert!(aggregator.create(&company).is_ok());
+        assert!(aggregator.update(1, &company_update).is_ok());
+
+        let event_ref1 = r#"{"tenantId":10,"companyId":1,"data":{"name":"Foo","employees":75}}"#;
+        let event_ref2 = r#"{"tenantId":20,"companyId":1,"data":{"name":"Bar","location":"Nowhere","vatId":12345,"employees":null}}"#;
+        get_events_and_compare(&mut aggregator, 0, &[&event_ref1, &event_ref2]);
+        get_events_and_compare(&mut aggregator, 1, &[&event_ref1, &event_ref2]);
+        get_events_and_compare(&mut aggregator, 2, &[&event_ref2]);
+        get_events_and_compare(&mut aggregator, 3, &[]);
     }
 
     fn create_aggregator() -> CompanyAggregator {
@@ -254,11 +279,22 @@ mod tests {
         }
     }
 
+    fn get_events_and_compare(aggregator: &mut CompanyAggregator, from_revision: u32, ref_events: &[&str]) {
+        let events = aggregator.get_events(from_revision);
+        assert!(events.is_ok());
+        let events = events.unwrap();
+        assert_eq!(events.len(), ref_events.len());
+        for (index, &ref_event) in ref_events.iter().enumerate() {
+            assert_eq!(events[index], *ref_event);
+        }
+    }
+
     fn check_events_and_revision(aggregator: &mut CompanyAggregator, revision_ref: u32) {
         let tx = aggregator.conn.transaction().unwrap();
         let revision = read_company_revision(&tx);
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), revision_ref);
+        // TODO: Better use aggregator.get_events(0), but this means duplicate borrowing
         let events = read_company_events(&tx, 0);
         assert!(events.is_ok());
         assert_eq!(events.unwrap().len(), revision_ref as usize);

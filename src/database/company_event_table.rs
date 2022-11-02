@@ -33,7 +33,7 @@ pub fn insert_company_event(tx: &Transaction, event: &str) -> Result<u32> {
     Ok(tx.last_insert_rowid() as u32)
 }
 
-pub fn read_company_events(tx: &Transaction, from_revision: i64) -> Result<Vec<String>> {
+pub fn read_company_events(tx: &Transaction, from_revision: u32) -> Result<Vec<String>> {
     let mut stmt = tx.prepare(SELECT_COMPANY_EVENTS)?;
     let rows = stmt.query_map([from_revision], |row| {
         let json: String = row.get(0)?;

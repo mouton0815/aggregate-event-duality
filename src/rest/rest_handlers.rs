@@ -45,7 +45,7 @@ pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32
 
 pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().await;
-    return match aggregator.get_all() {
+    return match aggregator.get_aggregates() {
         Ok(result) => {
             let (revision, companies) = result;
             Ok(Box::new(reply::with_header(reply::json(&companies), "X-Company-Revision", revision)))
