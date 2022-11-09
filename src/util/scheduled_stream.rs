@@ -8,6 +8,13 @@ use rand::Rng;
 use rand::rngs::ThreadRng;
 use tokio::time::{Interval, interval};
 
+// TODO: Call it Fetcher::fetch
+pub trait Generator {
+    fn generate(&mut self) -> Option<Vec<String>>;
+}
+
+////////////////////////
+
 struct RandomGenerator {
     limit: u32,
     counter: u32,
@@ -20,12 +27,8 @@ impl RandomGenerator {
     }
 }
 
-pub trait Generator {
-    fn generate(&mut self) -> Vec<String>;
-}
-
 impl Generator for RandomGenerator {
-    fn generate(&mut self) -> Vec<String> {
+    fn generate(&mut self) -> Option<Vec<String>> {
         println!("Fetch from {}", self.counter);
         let mut results = Vec::new();
         let bound = self.num_gen.gen_range(0 .. self.limit + 1);
@@ -34,9 +37,11 @@ impl Generator for RandomGenerator {
             self.counter += 1;
             results.push(self.counter.to_string());
         }
-        results
+        Some(results)
     }
 }
+
+////////////////////////
 
 pub struct ScheduledStream {
     interval: Interval,
@@ -60,8 +65,13 @@ impl Stream for ScheduledStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<String>> {
         if self.buffer.len() == 0 {
             ready!(self.interval.poll_tick(cx));
-            for item in self.generator.generate() {
-                self.buffer.push_back(item);
+            match self.generator.generate() {
+                None => return Poll::Ready(None), // Terminate polling
+                Some(batch) => {
+                    for item in batch {
+                        self.buffer.push_back(item);
+                    }
+                }
             }
         }
         return match self.buffer.pop_front() {
@@ -93,25 +103,52 @@ mod tests {
     }
 
     impl Generator for TestGenerator {
-        fn generate(&mut self) -> Vec<String> {
+        fn generate(&mut self) -> Option<Vec<String>> {
             if self.index == self.batches.len() {
-                return Vec::new()
+                return None
             }
             let iter = self.batches[self.index].iter();
             self.index += 1;
-            iter.map(|y| String::from(*y)).collect()
+            Some(iter.map(|y| String::from(*y)).collect())
         }
     }
 
     #[tokio::test]
     async fn test_empty_first_batch() {
-        let d = vec![vec!["1"]];
+        let d = vec![vec![], vec!["1","2"], vec!["3"]];
         let g = Box::new(TestGenerator::new(d));
         let mut s = ScheduledStream::new(Duration::from_millis(3), g);
+        let mut v = Vec::new();
         while let Some(item) = s.next().await {
-            println!("-----> {}", item)
+            v.push(item);
         }
+        assert_eq!(v, vec!["1","2","3"]);
     }
+
+    #[tokio::test]
+    async fn test_empty_last_batch() {
+        let d = vec![vec!["1"], vec!["2","3"], vec![]];
+        let g = Box::new(TestGenerator::new(d));
+        let mut s = ScheduledStream::new(Duration::from_millis(3), g);
+        let mut v = Vec::new();
+        while let Some(item) = s.next().await {
+            v.push(item);
+        }
+        assert_eq!(v, vec!["1","2","3"]);
+    }
+
+    /*
+    async fn exec_test(data: Vec<Vec<&str>>, ref_results: Vec<&str>) {
+        let g = Box::new(TestGenerator::new(data.clone()));
+        let mut s = ScheduledStream::new(Duration::from_millis(3), g);
+        let mut v = Vec::new();
+        while let Some(item) = s.next().await {
+            println!("-----> {}", item);
+            v.push(item);
+        }
+        assert_eq!(v, ref_results);
+    }
+    */
 }
 
 /*
