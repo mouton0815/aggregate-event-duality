@@ -8,9 +8,8 @@ use rand::Rng;
 use rand::rngs::ThreadRng;
 use tokio::time::{Interval, interval};
 
-// TODO: Call it Fetcher::fetch
-pub trait Generator {
-    fn generate(&mut self) -> Option<Vec<String>>;
+pub trait Fetcher {
+    fn fetch(&mut self) -> Option<Vec<String>>;
 }
 
 ////////////////////////
@@ -27,8 +26,8 @@ impl RandomGenerator {
     }
 }
 
-impl Generator for RandomGenerator {
-    fn generate(&mut self) -> Option<Vec<String>> {
+impl Fetcher for RandomGenerator {
+    fn fetch(&mut self) -> Option<Vec<String>> {
         println!("Fetch from {}", self.counter);
         let mut results = Vec::new();
         let bound = self.num_gen.gen_range(0 .. self.limit + 1);
@@ -46,15 +45,15 @@ impl Generator for RandomGenerator {
 pub struct ScheduledStream {
     interval: Interval,
     buffer: VecDeque<String>,
-    generator: Box<dyn Generator + 'static>
+    fetcher: Box<dyn Fetcher + 'static>
 }
 
 impl ScheduledStream {
-    pub fn new(duration: Duration, generator: Box<dyn Generator + 'static>) -> Self {
+    pub fn new(duration: Duration, fetcher: Box<dyn Fetcher + 'static>) -> Self {
         Self {
             interval: interval(duration),
             buffer: VecDeque::new(),
-            generator
+            fetcher
         }
     }
 }
@@ -65,7 +64,7 @@ impl Stream for ScheduledStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<String>> {
         if self.buffer.len() == 0 {
             ready!(self.interval.poll_tick(cx));
-            match self.generator.generate() {
+            match self.fetcher.fetch() {
                 None => return Poll::Ready(None), // Terminate polling
                 Some(batch) => {
                     for item in batch {
@@ -89,7 +88,7 @@ impl Stream for ScheduledStream {
 mod tests {
     use std::time::Duration;
     use futures_util::StreamExt;
-    use crate::util::scheduled_stream::{Generator, ScheduledStream};
+    use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
 
     struct TestGenerator {
         batches: Vec<Vec<&'static str>>,
@@ -102,8 +101,8 @@ mod tests {
         }
     }
 
-    impl Generator for TestGenerator {
-        fn generate(&mut self) -> Option<Vec<String>> {
+    impl Fetcher for TestGenerator {
+        fn fetch(&mut self) -> Option<Vec<String>> {
             if self.index == self.batches.len() {
                 return None
             }
