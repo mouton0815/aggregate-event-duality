@@ -90,18 +90,18 @@ mod tests {
     use futures_util::StreamExt;
     use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
 
-    struct TestGenerator {
+    struct TestFetcher {
         batches: Vec<Vec<&'static str>>,
         index: usize
     }
 
-    impl TestGenerator {
+    impl TestFetcher {
         fn new(batches: Vec<Vec<&'static str>>) -> Self {
             Self { batches, index: 0 }
         }
     }
 
-    impl Fetcher for TestGenerator {
+    impl Fetcher for TestFetcher {
         fn fetch(&mut self) -> Option<Vec<String>> {
             if self.index == self.batches.len() {
                 return None
@@ -114,40 +114,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_first_batch() {
-        let d = vec![vec![], vec!["1","2"], vec!["3"]];
-        let g = Box::new(TestGenerator::new(d));
-        let mut s = ScheduledStream::new(Duration::from_millis(3), g);
-        let mut v = Vec::new();
-        while let Some(item) = s.next().await {
-            v.push(item);
-        }
-        assert_eq!(v, vec!["1","2","3"]);
+        exec_test(vec![vec![], vec!["1","2"], vec!["3"]], vec!["1","2","3"]).await
     }
 
     #[tokio::test]
     async fn test_empty_last_batch() {
-        let d = vec![vec!["1"], vec!["2","3"], vec![]];
-        let g = Box::new(TestGenerator::new(d));
-        let mut s = ScheduledStream::new(Duration::from_millis(3), g);
-        let mut v = Vec::new();
-        while let Some(item) = s.next().await {
-            v.push(item);
-        }
-        assert_eq!(v, vec!["1","2","3"]);
+        exec_test(vec![vec!["1"], vec!["2","3"], vec![]], vec!["1","2","3"]).await
     }
 
-    /*
-    async fn exec_test(data: Vec<Vec<&str>>, ref_results: Vec<&str>) {
-        let g = Box::new(TestGenerator::new(data.clone()));
+    async fn exec_test(data: Vec<Vec<&'static str>>, ref_results: Vec<&str>) {
+        let g = Box::new(TestFetcher::new(data));
         let mut s = ScheduledStream::new(Duration::from_millis(3), g);
         let mut v = Vec::new();
         while let Some(item) = s.next().await {
-            println!("-----> {}", item);
             v.push(item);
         }
         assert_eq!(v, ref_results);
     }
-    */
 }
 
 /*
