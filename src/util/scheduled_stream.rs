@@ -3,44 +3,12 @@ use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 use std::time::Duration;
 
-use futures_util::{Stream, StreamExt};
-use rand::Rng;
-use rand::rngs::ThreadRng;
+use futures_util::Stream;
 use tokio::time::{Interval, interval};
 
 pub trait Fetcher {
     fn fetch(&mut self) -> Option<Vec<String>>;
 }
-
-////////////////////////
-
-struct RandomGenerator {
-    limit: u32,
-    counter: u32,
-    num_gen: ThreadRng
-}
-
-impl RandomGenerator {
-    fn new(limit: u32) -> Self {
-        Self { limit, counter: 0, num_gen: rand::thread_rng() }
-    }
-}
-
-impl Fetcher for RandomGenerator {
-    fn fetch(&mut self) -> Option<Vec<String>> {
-        println!("Fetch from {}", self.counter);
-        let mut results = Vec::new();
-        let bound = self.num_gen.gen_range(0 .. self.limit + 1);
-        println!("--b--> {}", bound);
-        for _ in 0..bound {
-            self.counter += 1;
-            results.push(self.counter.to_string());
-        }
-        Some(results)
-    }
-}
-
-////////////////////////
 
 pub struct ScheduledStream {
     interval: Interval,
@@ -132,14 +100,3 @@ mod tests {
         assert_eq!(v, ref_results);
     }
 }
-
-/*
-#[tokio::main]
-async fn main() {
-    let g = Box::new(RandomGenerator::new(5));
-    let mut s = ScheduledStream::new(Duration::from_secs(3), g);
-    while let Some(item) = s.next().await {
-        println!("-----> {}", item)
-    }
-}
-*/
