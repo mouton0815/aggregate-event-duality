@@ -6,30 +6,30 @@ use std::time::Duration;
 use futures_util::Stream;
 use tokio::time::{Interval, interval};
 
-pub trait Fetcher {
-    fn fetch(&mut self) -> Option<Vec<String>>;
+pub trait Fetcher<T> {
+    fn fetch(&mut self) -> Option<Vec<T>>;
 }
 
-pub struct ScheduledStream {
+pub struct ScheduledStream<T> {
     interval: Interval,
-    buffer: VecDeque<String>,
-    fetcher: Box<dyn Fetcher + 'static>
+    buffer: Box<VecDeque<T>>,
+    fetcher: Box<dyn Fetcher<T>>
 }
 
-impl ScheduledStream {
-    pub fn new(duration: Duration, fetcher: Box<dyn Fetcher + 'static>) -> Self {
+impl<T> ScheduledStream<T> {
+    pub fn new(duration: Duration, fetcher: Box<dyn Fetcher<T>>) -> Self {
         Self {
             interval: interval(duration),
-            buffer: VecDeque::new(),
+            buffer: Box::new(VecDeque::new()),
             fetcher
         }
     }
 }
 
-impl Stream for ScheduledStream {
-    type Item = String;
+impl<T> Stream for ScheduledStream<T> {
+    type Item = T;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<String>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<T>> {
         if self.buffer.len() == 0 {
             ready!(self.interval.poll_tick(cx));
             match self.fetcher.fetch() {
@@ -45,10 +45,6 @@ impl Stream for ScheduledStream {
             Some(x) => Poll::Ready(Some(x)),
             None => Poll::Pending
         }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (std::usize::MAX, None)
     }
 }
 
@@ -69,7 +65,7 @@ mod tests {
         }
     }
 
-    impl Fetcher for TestFetcher {
+    impl Fetcher<String> for TestFetcher {
         fn fetch(&mut self) -> Option<Vec<String>> {
             if self.index == self.batches.len() {
                 return None

@@ -17,7 +17,7 @@ impl RandomGenerator {
     }
 }
 
-impl Fetcher for RandomGenerator {
+impl Fetcher<String> for RandomGenerator {
     fn fetch(&mut self) -> Option<Vec<String>> {
         println!("start: {}", self.counter);
         let mut results = Vec::new();
