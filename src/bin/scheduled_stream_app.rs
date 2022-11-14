@@ -1,19 +1,19 @@
 use std::time::Duration;
 use futures_util::StreamExt;
-use rand::Rng;
-use rand::rngs::ThreadRng;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 use aggregate_event_duality::util::scheduled_stream::{Fetcher, ScheduledStream};
 
 
 struct RandomGenerator {
     limit: u32,
     counter: u32,
-    num_gen: ThreadRng
+    num_gen: StdRng
 }
 
 impl RandomGenerator {
     fn new(limit: u32) -> Self {
-        Self { limit, counter: 0, num_gen: rand::thread_rng() }
+        Self { limit, counter: 0, num_gen: StdRng::seed_from_u64(123) }
     }
 }
 

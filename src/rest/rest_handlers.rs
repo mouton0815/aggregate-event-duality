@@ -1,11 +1,15 @@
 use std::convert::Infallible;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use serde::{Serialize, Deserialize};
-use tokio::sync::Mutex;
+use futures_util::StreamExt;
 use warp::http::StatusCode;
-use warp::{reply, Reply};
+use warp::{reply, Reply, sse};
+use warp::sse::Event;
 use crate::aggregator::company_aggregator::CompanyAggregator;
 use crate::domain::company_rest::{CompanyPost, CompanyPatch};
+use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
+
 
 pub type MutexedCompanyAggregator = Arc<Mutex<CompanyAggregator>>;
 
@@ -15,7 +19,7 @@ struct ErrorResult {
 }
 
 pub async fn post_company(aggregator: MutexedCompanyAggregator, company: CompanyPost) -> Result<impl Reply, Infallible> {
-    let mut aggregator = aggregator.lock().await;
+    let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.create(&company) {
         Ok(result) => {
             Ok(reply::with_status(reply::json(&result), StatusCode::CREATED))
@@ -28,7 +32,7 @@ pub async fn post_company(aggregator: MutexedCompanyAggregator, company: Company
 }
 
 pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32, company: CompanyPatch) -> Result<Box<dyn Reply>, Infallible> {
-    let mut aggregator = aggregator.lock().await;
+    let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.update(company_id, &company) {
         Ok(result) => {
             match result {
@@ -44,7 +48,7 @@ pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32
 }
 
 pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<dyn Reply>, Infallible> {
-    let mut aggregator = aggregator.lock().await;
+    let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_aggregates() {
         Ok(result) => {
             let (revision, companies) = result;
@@ -55,4 +59,35 @@ pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<d
             Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))) // TODO: Better errors
         }
     }
+}
+
+struct CompanyEventFetcher {
+    offset: u32,
+    aggregator: MutexedCompanyAggregator
+}
+
+impl CompanyEventFetcher {
+    fn new(offset: u32, aggregator: MutexedCompanyAggregator) -> Self {
+        Self { offset, aggregator }
+    }
+}
+
+impl Fetcher<String> for CompanyEventFetcher {
+    fn fetch(&mut self) -> Option<Vec<String>> {
+        let mut aggregator = self.aggregator.lock().unwrap();
+        let results = aggregator.get_events(self.offset); // TODO: Incr offset
+        return match results {
+            Ok(events) => Some(events),
+            Err(_) => None // TODO: Display/transport error
+        }
+    }
+}
+
+pub async fn get_company_events(aggregator: MutexedCompanyAggregator, from_revision: u32) -> Result<impl Reply, Infallible> {
+    let fetcher = Box::new(CompanyEventFetcher::new(from_revision, aggregator));
+    let stream = ScheduledStream::new(Duration::from_secs(1), fetcher);
+    let stream = stream.map(move |item| {
+        Ok::<Event, Infallible>(Event::default().data(item))
+    });
+    Ok(sse::reply(stream))
 }

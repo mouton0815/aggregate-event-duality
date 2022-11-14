@@ -1,7 +1,7 @@
 use std::error::Error;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::signal;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 use aggregate_event_duality::aggregator::company_aggregator::CompanyAggregator;
 use aggregate_event_duality::rest::http_server::spawn_http_server;
 

@@ -13,11 +13,11 @@ pub trait Fetcher<T> {
 pub struct ScheduledStream<T> {
     interval: Interval,
     buffer: Box<VecDeque<T>>,
-    fetcher: Box<dyn Fetcher<T>>
+    fetcher: Box<dyn Fetcher<T> + Send>
 }
 
 impl<T> ScheduledStream<T> {
-    pub fn new(duration: Duration, fetcher: Box<dyn Fetcher<T>>) -> Self {
+    pub fn new(duration: Duration, fetcher: Box<dyn Fetcher<T> + Send>) -> Self {
         Self {
             interval: interval(duration),
             buffer: Box::new(VecDeque::new()),
