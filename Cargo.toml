@@ -17,6 +17,7 @@ const_format = "0.2.22"
 lazy_static = "1.4.0"
 warp = "0.3.2"
 rand = "0.8.5"
+thiserror = "1.0.37"
 
 [dependencies.rusqlite]
 version = "0.26.3"

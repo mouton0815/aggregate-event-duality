@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
@@ -73,12 +74,15 @@ impl CompanyEventFetcher {
 }
 
 impl Fetcher<String> for CompanyEventFetcher {
-    fn fetch(&mut self) -> Option<Vec<String>> {
+    fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
         let mut aggregator = self.aggregator.lock().unwrap();
-        let results = aggregator.get_events(self.offset); // TODO: Incr offset
+        let results = aggregator.get_events(self.offset);
         return match results {
-            Ok(events) => Some(events),
-            Err(_) => None // TODO: Display/transport error
+            Err(err) => Err(err),
+            Ok(events) => {
+                self.offset += events.len() as u32;
+                Ok(events)
+            }
         }
     }
 }

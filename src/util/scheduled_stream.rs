@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::error::Error;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 use std::time::Duration;
@@ -7,7 +8,7 @@ use futures_util::Stream;
 use tokio::time::{Interval, interval};
 
 pub trait Fetcher<T> {
-    fn fetch(&mut self) -> Option<Vec<T>>;
+    fn fetch(&mut self) -> Result<Vec<T>, Box<dyn Error>>;
 }
 
 pub struct ScheduledStream<T> {
@@ -33,11 +34,14 @@ impl<T> Stream for ScheduledStream<T> {
         if self.buffer.len() == 0 {
             ready!(self.interval.poll_tick(cx));
             match self.fetcher.fetch() {
-                None => return Poll::Ready(None), // Terminate polling
-                Some(batch) => {
+                Ok(batch) => {
                     for item in batch {
                         self.buffer.push_back(item);
                     }
+                }
+                Err(err) => {
+                    eprintln!("Fetcher returned error {}, stop polling", err);
+                    return Poll::Ready(None)
                 }
             }
         }
@@ -50,9 +54,16 @@ impl<T> Stream for ScheduledStream<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
     use std::time::Duration;
     use futures_util::StreamExt;
     use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
+
+    #[derive(thiserror::Error,Debug)]
+    enum TestError {
+        #[error("End of sequence")]
+        EndOfSequence
+    }
 
     struct TestFetcher {
         batches: Vec<Vec<&'static str>>,
@@ -66,13 +77,13 @@ mod tests {
     }
 
     impl Fetcher<String> for TestFetcher {
-        fn fetch(&mut self) -> Option<Vec<String>> {
+        fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
             if self.index == self.batches.len() {
-                return None
+                return Err(Box::new(TestError::EndOfSequence))
             }
             let iter = self.batches[self.index].iter();
             self.index += 1;
-            Some(iter.map(|y| String::from(*y)).collect())
+            Ok(iter.map(|y| String::from(*y)).collect())
         }
     }
 
