@@ -1,0 +1,7 @@
+{
+  "tenantId": 10,
+  "name": "Bar AG",
+  "location": "Spain",
+  "vatId": 456,
+  "employees": 100
+}
