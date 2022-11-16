@@ -8,7 +8,12 @@ fn with_aggregator(aggregator: MutexedCompanyAggregator)
     warp::any().map(move || aggregator.clone())
 }
 
-pub async fn spawn_http_server(aggregator: MutexedCompanyAggregator) {
+// TODO: Isn't there a simpler way??
+fn with_constant<T:Send+Copy>(argument: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
+    warp::any().map(move || argument)
+}
+
+pub async fn spawn_http_server(aggregator: MutexedCompanyAggregator, repeat_every_secs: u64) {
     info!("Spawn HTTP server");
 
     let path = "companies";
@@ -39,6 +44,7 @@ pub async fn spawn_http_server(aggregator: MutexedCompanyAggregator) {
     let route_get_company_events = warp::path("company-events")
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
+        .and(with_constant(repeat_every_secs))
         .and(warp::header::optional::<u32>("x-from-revision"))
         .and_then(get_company_events);
 

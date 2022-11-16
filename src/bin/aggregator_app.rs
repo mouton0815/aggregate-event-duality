@@ -12,5 +12,5 @@ async fn main() {
         .unwrap_or_else(|error| panic!("{}", error));
     let aggregator= Arc::new(Mutex::new(aggregator));
 
-    spawn_http_server(aggregator).await;
+    spawn_http_server(aggregator, 5).await;
 }
