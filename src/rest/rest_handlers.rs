@@ -103,7 +103,8 @@ impl Fetcher<String> for CompanyEventFetcher {
     }
 }
 
-pub async fn get_company_events(aggregator: MutexedCompanyAggregator, from_revision: u32) -> Result<impl Reply, Infallible> {
+pub async fn get_company_events(aggregator: MutexedCompanyAggregator, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
+    let from_revision = from_revision.unwrap_or(1);
     let fetcher = Box::new(CompanyEventFetcher::new(from_revision, aggregator));
     let stream = ScheduledStream::new(Duration::from_secs(1), fetcher);
     let stream = stream.map(move |item| {

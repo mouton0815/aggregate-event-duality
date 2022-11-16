@@ -39,7 +39,7 @@ pub async fn spawn_http_server(aggregator: MutexedCompanyAggregator) {
     let route_get_company_events = warp::path("company-events")
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
-        .and(warp::path::param::<u32>())// TODO: Should be header value
+        .and(warp::header::optional::<u32>("x-from-revision"))
         .and_then(get_company_events);
 
     let routes = route_get_companies

@@ -2,4 +2,4 @@ curl -d "@data/company_foo_post.json" -H "Content-Type: application/json" -X POS
 curl -d "@data/company_foo_patch.json" -H "Content-Type: application/json" -X PATCH http://localhost:3000/companies/1
 curl -X DELETE http://localhost:3000/companies/1
 curl http://localhost:3000/companies
-curl -N http://localhost:3000/company-events
+curl -N -H "x-from-revision: 1" http://localhost:3000/company-events
