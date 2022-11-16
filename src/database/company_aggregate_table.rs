@@ -1,4 +1,5 @@
 use const_format::formatcp;
+use log::{debug, error};
 use rusqlite::{Connection, Error, params, Result, Row, ToSql, Transaction};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_rest::{CompanyPost, CompanyPatch};
@@ -39,11 +40,13 @@ const SELECT_COMPANY : &'static str = formatcp!("
 );
 
 pub fn create_company_aggregate_table(conn: &Connection) -> Result<()> {
+    debug!("Execute {}", CREATE_COMPANY_TABLE);
     conn.execute(CREATE_COMPANY_TABLE, [])?;
     Ok(())
 }
 
 pub fn insert_company_aggregate(tx: &Transaction, company: &CompanyPost) -> Result<u32> {
+    debug!("Execute {}\nwith: {:?}", INSERT_COMPANY, company);
     let values = params![company.tenant_id, company.name, company.location, company.vat_id, company.employees];
     tx.execute(INSERT_COMPANY, values)?;
     Ok(tx.last_insert_rowid() as u32)
@@ -73,21 +76,24 @@ pub fn update_company_aggregate(tx: &Transaction, company_id: u32, company: &Com
         values.push(&company.employees);
     }
     if columns.is_empty() {
-        eprintln!("Do not run update query because all non-id values are missing"); // TODO: Use logging
+        error!("Do not run update query because all non-id values are missing");
         return Err(Error::InvalidParameterCount(0, 5));
     }
     let query = format!("UPDATE {} SET {} WHERE companyId=?", COMPANY_AGGREGATE_TABLE, columns.join(",").as_str());
     values.push(&company_id);
+    debug!("Execute\n{}\nwith: {:?}", query, company);
     let row_count = tx.execute(query.as_str(), values.as_slice())?;
     Ok(row_count == 1)
 }
 
-pub fn delete_company_aggregate(tx: &Transaction, company_id: u32) -> Result<()> {
-    tx.execute(DELETE_COMPANY, params![company_id])?;
-    Ok(())
+pub fn delete_company_aggregate(tx: &Transaction, company_id: u32) -> Result<bool> {
+    debug!("Execute {} with: {}", DELETE_COMPANY, company_id);
+    let row_count = tx.execute(DELETE_COMPANY, params![company_id])?;
+    Ok(row_count == 1)
 }
 
 pub fn read_company_aggregates(tx: &Transaction) -> Result<Vec<CompanyAggregate>> {
+    debug!("Execute {}", SELECT_COMPANIES);
     let mut stmt = tx.prepare(SELECT_COMPANIES)?;
     let rows = stmt.query_map([], |row| {
         row_to_company_aggregate(row)
@@ -100,6 +106,7 @@ pub fn read_company_aggregates(tx: &Transaction) -> Result<Vec<CompanyAggregate>
 }
 
 pub fn read_company_aggregate(tx: &Transaction, company_id: u32) -> Result<CompanyAggregate> {
+    debug!("Execute {} with: {}", SELECT_COMPANY, company_id);
     let mut stmt = tx.prepare(SELECT_COMPANY)?;
     let row = stmt.query_row([company_id], |row| {
         row_to_company_aggregate(row)
@@ -234,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_delete() {
+    fn test_delete() { // TODO: Check return value!
         let company = CompanyPost{
             tenant_id: 10,
             name: String::from("Foo"),

@@ -5,6 +5,7 @@ use std::task::{Context, Poll, ready};
 use std::time::Duration;
 
 use futures_util::Stream;
+use log::error;
 use tokio::time::{Interval, interval};
 
 pub trait Fetcher<T> {
@@ -40,7 +41,7 @@ impl<T> Stream for ScheduledStream<T> {
                     }
                 }
                 Err(err) => {
-                    eprintln!("Fetcher returned error {}, stop polling", err);
+                    error!("Fetcher returned error {}, stop polling", err);
                     return Poll::Ready(None)
                 }
             }

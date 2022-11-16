@@ -1,4 +1,5 @@
 use const_format::formatcp;
+use log::debug;
 use rusqlite::{Connection, params, Result, Transaction};
 
 enum RevisionType {
@@ -29,11 +30,13 @@ const SELECT_REVISION : &'static str = formatcp!("
 );
 
 pub fn create_revision_table(conn: &Connection) -> Result<()> {
+    debug!("Execute {}", CREATE_REVISION_TABLE);
     conn.execute(CREATE_REVISION_TABLE, [])?;
     Ok(())
 }
 
 pub fn upsert_company_revision(tx: &Transaction, revision: u32) -> Result<()> {
+    debug!("Execute {} with: {}", UPSERT_REVISION, revision);
     tx.execute(UPSERT_REVISION, params![RevisionType::Company as u32, revision])?;
     Ok(())
 }

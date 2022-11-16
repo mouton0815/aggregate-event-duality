@@ -6,6 +6,7 @@ use aggregate_event_duality::rest::http_server::spawn_http_server;
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
 
     let aggregator = CompanyAggregator::new(":memory:")
         .unwrap_or_else(|error| panic!("{}", error));

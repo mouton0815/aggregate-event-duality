@@ -1,4 +1,5 @@
 use std::error::Error;
+use log::{info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::company_aggregate_table::{create_company_aggregate_table, delete_company_aggregate, insert_company_aggregate, read_company_aggregate, read_company_aggregates, update_company_aggregate};
 use crate::database::company_event_table::{create_company_event_table, insert_company_event, read_company_events};
@@ -28,6 +29,7 @@ impl CompanyAggregator {
         let event = Self::create_event_for_post(company_id, company);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
+        info!("Created {:?} from {:?}", aggregate, company);
         Ok(aggregate)
     }
 
@@ -38,9 +40,11 @@ impl CompanyAggregator {
             let event = Self::create_event_for_patch(company_id, aggregate.tenant_id, company);
             Self::write_event_and_revision(&tx, &event)?;
             tx.commit()?;
+            info!("Updated {:?} from {:?}", aggregate, company);
             Ok(Some(aggregate))
         } else {
             tx.rollback()?; // There should be no changes, so tx.commit() would also work
+            warn!("Company aggregate {} not found", company_id);
             Ok(None)
         }
     }
@@ -52,6 +56,7 @@ impl CompanyAggregator {
         let event = Self::create_event_for_delete(company_id, aggregate.tenant_id);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
+        info!("Deleted {:?}", aggregate);
         Ok(aggregate)
     }
 

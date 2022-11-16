@@ -1,4 +1,5 @@
 use const_format::formatcp;
+use log::debug;
 use rusqlite::{Connection, params, Result, Transaction};
 
 const COMPANY_EVENT_TABLE : &'static str = "company_event";
@@ -24,16 +25,19 @@ const SELECT_COMPANY_EVENTS : &'static str = formatcp!("
 );
 
 pub fn create_company_event_table(conn: &Connection) -> Result<()> {
+    debug!("Execute {}", CREATE_COMPANY_EVENT_TABLE);
     conn.execute(CREATE_COMPANY_EVENT_TABLE, [])?;
     Ok(())
 }
 
 pub fn insert_company_event(tx: &Transaction, event: &str) -> Result<u32> {
+    debug!("Execute {} with: {}", INSERT_COMPANY_EVENT, event);
     tx.execute(INSERT_COMPANY_EVENT, params![event])?;
     Ok(tx.last_insert_rowid() as u32)
 }
 
 pub fn read_company_events(tx: &Transaction, from_revision: u32) -> Result<Vec<String>> {
+    debug!("Execute {} with: {}", SELECT_COMPANY_EVENTS, from_revision);
     let mut stmt = tx.prepare(SELECT_COMPANY_EVENTS)?;
     let rows = stmt.query_map([from_revision], |row| {
         let json: String = row.get(0)?;

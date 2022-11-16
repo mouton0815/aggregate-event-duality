@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use log::info;
 use warp::Filter;
 use crate::rest::rest_handlers::{get_companies, MutexedCompanyAggregator, post_company, patch_company, get_company_events};
 
@@ -8,7 +9,7 @@ fn with_aggregator(aggregator: MutexedCompanyAggregator)
 }
 
 pub async fn spawn_http_server(aggregator: MutexedCompanyAggregator) {
-    println!("Spawn HTTP server");
+    info!("Spawn HTTP server");
 
     let path = "companies";
     let route_get_companies = warp::path(path)
