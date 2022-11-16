@@ -1,6 +1,6 @@
 use const_format::formatcp;
 use log::{debug, error};
-use rusqlite::{Connection, Error, params, Result, Row, ToSql, Transaction};
+use rusqlite::{Connection, Error, OptionalExtension, params, Result, Row, ToSql, Transaction};
 use crate::domain::company_aggregate::CompanyAggregate;
 use crate::domain::company_rest::{CompanyPost, CompanyPatch};
 
@@ -105,13 +105,12 @@ pub fn read_company_aggregates(tx: &Transaction) -> Result<Vec<CompanyAggregate>
     Ok(companies)
 }
 
-pub fn read_company_aggregate(tx: &Transaction, company_id: u32) -> Result<CompanyAggregate> {
+pub fn read_company_aggregate(tx: &Transaction, company_id: u32) -> Result<Option<CompanyAggregate>> {
     debug!("Execute {} with: {}", SELECT_COMPANY, company_id);
     let mut stmt = tx.prepare(SELECT_COMPANY)?;
-    let row = stmt.query_row([company_id], |row| {
+    stmt.query_row([company_id], |row | {
         row_to_company_aggregate(row)
-    })?;
-    Ok(row)
+    }).optional()
 }
 
 fn row_to_company_aggregate(row: &Row) -> Result<CompanyAggregate> {
@@ -302,6 +301,7 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let company = company.unwrap();
-        assert_eq!(company, *ref_company);
+        assert!(company.is_some());
+        assert_eq!(company.unwrap(), *ref_company);
     }
 }

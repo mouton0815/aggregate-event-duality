@@ -25,7 +25,7 @@ impl CompanyAggregator {
     pub fn create(&mut self, company: &CompanyPost) -> Result<CompanyAggregate, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let company_id = insert_company_aggregate(&tx, &company)?;
-        let aggregate = read_company_aggregate(&tx, company_id)?;
+        let aggregate = read_company_aggregate(&tx, company_id)?.unwrap(); // Must exist
         let event = Self::create_event_for_post(company_id, company);
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
@@ -36,7 +36,7 @@ impl CompanyAggregator {
     pub fn update(&mut self, company_id: u32, company: &CompanyPatch) -> Result<Option<CompanyAggregate>, rusqlite::Error> {
         let tx = self.conn.transaction()?;
         if update_company_aggregate(&tx, company_id, &company)? {
-            let aggregate = read_company_aggregate(&tx, company_id)?;
+            let aggregate = read_company_aggregate(&tx, company_id)?.unwrap(); // Must exist
             let event = Self::create_event_for_patch(company_id, aggregate.tenant_id, company);
             Self::write_event_and_revision(&tx, &event)?;
             tx.commit()?;
@@ -49,15 +49,23 @@ impl CompanyAggregator {
         }
     }
 
-    pub fn delete(&mut self, company_id: u32) -> Result<CompanyAggregate, Box<dyn Error>> {
+    pub fn delete(&mut self, company_id: u32) -> Result<Option<CompanyAggregate>, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let aggregate = read_company_aggregate(&tx, company_id)?;
-        delete_company_aggregate(&tx, company_id)?;
-        let event = Self::create_event_for_delete(company_id, aggregate.tenant_id);
-        Self::write_event_and_revision(&tx, &event)?;
-        tx.commit()?;
-        info!("Deleted {:?}", aggregate);
-        Ok(aggregate)
+        match read_company_aggregate(&tx, company_id)? { // Read the aggregate first because we need the tenant_id
+            Some(aggregate) => {
+                delete_company_aggregate(&tx, company_id)?;
+                let event = Self::create_event_for_delete(company_id, aggregate.tenant_id);
+                Self::write_event_and_revision(&tx, &event)?;
+                tx.commit()?;
+                info!("Deleted {:?}", aggregate);
+                Ok(Some(aggregate))
+            },
+            None => {
+                tx.rollback()?; // There should be no changes, so tx.commit() would also work
+                warn!("Company aggregate {} not found", company_id);
+                Ok(None)
+            }
+        }
     }
 
     pub fn get_aggregates(&mut self) -> Result<(u32, Vec<CompanyAggregate>), Box<dyn Error>> {
@@ -199,6 +207,8 @@ mod tests {
         assert!(company_res.is_ok());
         let company_res = aggregator.delete(1);
         assert!(company_res.is_ok());
+        let company_res = company_res.unwrap();
+        assert!(company_res.is_some());
 
         let company_ref = create_company_ref();
         assert_eq!(company_res.unwrap(), company_ref);

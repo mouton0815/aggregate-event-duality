@@ -48,6 +48,22 @@ pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32
     }
 }
 
+pub async fn delete_company(aggregator: MutexedCompanyAggregator, company_id: u32) -> Result<Box<dyn Reply>, Infallible> {
+    let mut aggregator = aggregator.lock().unwrap();
+    return match aggregator.delete(company_id) {
+        Ok(result) => {
+            match result {
+                Some(company) => Ok(Box::new(reply::json(&company))),
+                None => Ok(Box::new(reply::with_status("Company not found", StatusCode::NOT_FOUND)))
+            }
+        },
+        Err(error) => {
+            let message = ErrorResult{ error: error.to_string() };
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+        }
+    }
+}
+
 pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_aggregates() {
