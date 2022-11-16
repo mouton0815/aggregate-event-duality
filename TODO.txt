@@ -3,3 +3,4 @@
 [x] Simplify http_server
 [X] Implement REST DELETE
 [ ] Implement tenant aggregator and corresponding REST GET endpoints
+[X] Clean up Cargo.toml
