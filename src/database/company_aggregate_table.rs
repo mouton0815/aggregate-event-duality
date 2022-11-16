@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_delete() { // TODO: Check return value!
+    fn test_delete() {
         let company = CompanyPost{
             tenant_id: 10,
             name: String::from("Foo"),
@@ -253,10 +253,22 @@ mod tests {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         assert!(insert_company_aggregate(&tx, &company).is_ok());
-        assert!(delete_company_aggregate(&tx, 1).is_ok());
+        let result = delete_company_aggregate(&tx, 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), true);
         assert!(tx.commit().is_ok());
 
         check_results(&mut conn, &[]);
+    }
+
+    #[test]
+    fn test_delete_missing() {
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        let result = delete_company_aggregate(&tx, 1);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), false);
+        assert!(tx.commit().is_ok());
     }
 
     fn create_connection_and_table() -> Connection {
