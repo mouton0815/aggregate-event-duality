@@ -1,3 +1,3 @@
-pub mod company_rest;
-pub mod company_aggregate;
-pub mod company_event;
+pub mod person_rest;
+pub mod person_aggregate;
+pub mod person_event;

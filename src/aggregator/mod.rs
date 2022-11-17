@@ -1,1 +1,1 @@
-pub mod company_aggregator;
+pub mod person_aggregator;

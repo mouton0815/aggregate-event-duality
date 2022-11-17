@@ -7,21 +7,21 @@ use futures_util::StreamExt;
 use warp::http::StatusCode;
 use warp::{reply, Reply, sse};
 use warp::sse::Event;
-use crate::aggregator::company_aggregator::CompanyAggregator;
-use crate::domain::company_rest::{CompanyPost, CompanyPatch};
+use crate::aggregator::person_aggregator::PersonAggregator;
+use crate::domain::person_rest::{PersonPost, PersonPatch};
 use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
 
 
-pub type MutexedCompanyAggregator = Arc<Mutex<CompanyAggregator>>;
+pub type MutexedPersonAggregator = Arc<Mutex<PersonAggregator>>;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 struct ErrorResult {
     error: String
 }
 
-pub async fn post_company(aggregator: MutexedCompanyAggregator, company: CompanyPost) -> Result<impl Reply, Infallible> {
+pub async fn post_person(aggregator: MutexedPersonAggregator, person: PersonPost) -> Result<impl Reply, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
-    return match aggregator.create(&company) {
+    return match aggregator.create(&person) {
         Ok(result) => {
             Ok(reply::with_status(reply::json(&result), StatusCode::CREATED))
         },
@@ -32,13 +32,13 @@ pub async fn post_company(aggregator: MutexedCompanyAggregator, company: Company
     }
 }
 
-pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32, company: CompanyPatch) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn patch_person(aggregator: MutexedPersonAggregator, person_id: u32, person: PersonPatch) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
-    return match aggregator.update(company_id, &company) {
+    return match aggregator.update(person_id, &person) {
         Ok(result) => {
             match result {
-                Some(company) => Ok(Box::new(reply::json(&company))),
-                None => Ok(Box::new(reply::with_status("Company not found", StatusCode::NOT_FOUND)))
+                Some(person) => Ok(Box::new(reply::json(&person))),
+                None => Ok(Box::new(reply::with_status("Person not found", StatusCode::NOT_FOUND)))
             }
         },
         Err(error) => {
@@ -48,13 +48,13 @@ pub async fn patch_company(aggregator: MutexedCompanyAggregator, company_id: u32
     }
 }
 
-pub async fn delete_company(aggregator: MutexedCompanyAggregator, company_id: u32) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn delete_person(aggregator: MutexedPersonAggregator, person_id: u32) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
-    return match aggregator.delete(company_id) {
+    return match aggregator.delete(person_id) {
         Ok(result) => {
             match result {
-                Some(company) => Ok(Box::new(reply::json(&company))),
-                None => Ok(Box::new(reply::with_status("Company not found", StatusCode::NOT_FOUND)))
+                Some(person) => Ok(Box::new(reply::json(&person))),
+                None => Ok(Box::new(reply::with_status("Person not found", StatusCode::NOT_FOUND)))
             }
         },
         Err(error) => {
@@ -64,12 +64,12 @@ pub async fn delete_company(aggregator: MutexedCompanyAggregator, company_id: u3
     }
 }
 
-pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn get_persons(aggregator: MutexedPersonAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_aggregates() {
         Ok(result) => {
-            let (revision, companies) = result;
-            Ok(Box::new(reply::with_header(reply::json(&companies), "X-Company-Revision", revision)))
+            let (revision, persons) = result;
+            Ok(Box::new(reply::with_header(reply::json(&persons), "X-From-Revision", revision)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
@@ -78,18 +78,18 @@ pub async fn get_companies(aggregator: MutexedCompanyAggregator) -> Result<Box<d
     }
 }
 
-struct CompanyEventFetcher {
+struct PersonEventFetcher {
     offset: u32,
-    aggregator: MutexedCompanyAggregator
+    aggregator: MutexedPersonAggregator
 }
 
-impl CompanyEventFetcher {
-    fn new(offset: u32, aggregator: MutexedCompanyAggregator) -> Self {
+impl PersonEventFetcher {
+    fn new(offset: u32, aggregator: MutexedPersonAggregator) -> Self {
         Self { offset, aggregator }
     }
 }
 
-impl Fetcher<String> for CompanyEventFetcher {
+impl Fetcher<String> for PersonEventFetcher {
     fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
         let mut aggregator = self.aggregator.lock().unwrap();
         let results = aggregator.get_events(self.offset);
@@ -103,9 +103,9 @@ impl Fetcher<String> for CompanyEventFetcher {
     }
 }
 
-pub async fn get_company_events(aggregator: MutexedCompanyAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
+pub async fn get_person_events(aggregator: MutexedPersonAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
     let from_revision = from_revision.unwrap_or(1);
-    let fetcher = Box::new(CompanyEventFetcher::new(from_revision, aggregator));
+    let fetcher = Box::new(PersonEventFetcher::new(from_revision, aggregator));
     let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
     let stream = stream.map(move |item| {
         Ok::<Event, Infallible>(Event::default().data(item))

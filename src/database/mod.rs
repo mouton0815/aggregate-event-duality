@@ -1,3 +1,3 @@
-pub mod company_aggregate_table;
+pub mod person_aggregate_table;
 pub mod revision_table;
-pub mod company_event_table;
+pub mod person_event_table;
