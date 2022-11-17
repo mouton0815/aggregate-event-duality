@@ -53,8 +53,8 @@ pub async fn delete_person(aggregator: MutexedPersonAggregator, person_id: u32) 
     return match aggregator.delete(person_id) {
         Ok(result) => {
             match result {
-                Some(person) => Ok(Box::new(reply::json(&person))),
-                None => Ok(Box::new(reply::with_status("Person not found", StatusCode::NOT_FOUND)))
+                true => Ok(Box::new(reply())),
+                false => Ok(Box::new(reply::with_status("Person not found", StatusCode::NOT_FOUND)))
             }
         },
         Err(error) => {

@@ -49,27 +49,23 @@ impl PersonAggregator {
         }
     }
 
-    pub fn delete(&mut self, person_id: u32) -> Result<Option<PersonAggregate>, Box<dyn Error>> {
+    pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        match read_person_aggregate(&tx, person_id)? { // Read the aggregate first because we need the tenant_id // TODO: Remove this!
-            Some(aggregate) => {
-                delete_person_aggregate(&tx, person_id)?;
-                let event = Self::create_event_for_delete(person_id);
-                Self::write_event_and_revision(&tx, &event)?;
-                tx.commit()?;
-                info!("Deleted {:?}", aggregate);
-                Ok(Some(aggregate))
-            },
-            None => {
-                tx.rollback()?; // There should be no changes, so tx.commit() would also work
-                warn!("Person aggregate {} not found", person_id);
-                Ok(None)
-            }
+        if delete_person_aggregate(&tx, person_id)? {
+            let event = Self::create_event_for_delete(person_id);
+            Self::write_event_and_revision(&tx, &event)?;
+            tx.commit()?;
+            info!("Deleted person aggregate {}", person_id);
+            Ok(true)
+        } else {
+            tx.rollback()?; // There should be no changes, so tx.commit() would also work
+            warn!("Person aggregate {} not found", person_id);
+            Ok(false)
         }
     }
 
     pub fn get_aggregates(&mut self) -> Result<(u32, Vec<PersonAggregate>), Box<dyn Error>> {
-        let tx = self.conn.transaction()?; // TODO: Can we have read-only transactions?
+        let tx = self.conn.transaction()?;
         let revision = read_person_revision(&tx)?;
         let persons = read_person_aggregates(&tx)?;
         tx.commit()?;
@@ -77,7 +73,7 @@ impl PersonAggregator {
     }
 
     pub fn get_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
-        let tx = self.conn.transaction()?; // TODO: Can we have read-only transactions?
+        let tx = self.conn.transaction()?;
         let events = read_person_events(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
@@ -198,10 +194,7 @@ mod tests {
         let person_res = aggregator.delete(1);
         assert!(person_res.is_ok());
         let person_res = person_res.unwrap();
-        assert!(person_res.is_some());
-
-        let person_ref = create_person_ref();
-        assert_eq!(person_res.unwrap(), person_ref);
+        assert!(person_res);
 
         check_events_and_revision(&mut aggregator, 2);
     }
