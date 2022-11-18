@@ -18,7 +18,7 @@ mod tests {
     use crate::domain::person_aggregate::PersonAggregate;
 
     #[test]
-    pub fn test_serde_person_aggregate() {
+    pub fn test_person_aggregate() {
         let person_ref = PersonAggregate {
             person_id: 10,
             name: String::from("Hans"),
