@@ -4,3 +4,4 @@
 [X] Implement REST DELETE
 [ ] Implement location aggregator and corresponding REST GET endpoints
 [X] Clean up Cargo.toml
+[ ] Return Location header in POST result

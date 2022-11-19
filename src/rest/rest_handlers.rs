@@ -24,7 +24,8 @@ pub async fn post_person(aggregator: MutexedPersonAggregator, person: PersonData
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.create(&person) {
         Ok(result) => {
-            Ok(reply::with_status(reply::json(&result), StatusCode::CREATED))
+            let (_person_id, person_data) = result; // TODO: Return person_id as Location header
+            Ok(reply::with_status(reply::json(&person_data), StatusCode::CREATED))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
