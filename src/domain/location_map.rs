@@ -69,9 +69,7 @@ mod tests {
     }
 
 
-    fn serde_and_verify<'a, LocationMap>(location_map_ref: &LocationMap, json_ref: &'a str)
-        where LocationMap: Serialize + Deserialize<'a> + PartialEq + Debug {
-
+    fn serde_and_verify(location_map_ref: &LocationMap, json_ref: &str) {
         // 1. Serialize location_map_ref and string-compare it to json_ref
         let json = serde_json::to_string(&location_map_ref);
         assert!(json.is_ok());

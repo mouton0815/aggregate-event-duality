@@ -67,9 +67,7 @@ mod tests {
         serde_and_verify(&person_event, json_ref);
     }
 
-    fn serde_and_verify<'a, PersonEvent>(person_event_ref: &PersonEvent, json_ref: &'a str)
-        where PersonEvent: Serialize + Deserialize<'a> + PartialEq + Debug {
-
+    fn serde_and_verify(person_event_ref: &PersonEvent, json_ref: & str) {
         // 1. Serialize person_map_ref and string-compare it to json_ref
         let json = serde_json::to_string(&person_event_ref);
         assert!(json.is_ok());
