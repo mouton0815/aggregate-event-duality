@@ -25,6 +25,7 @@ pub async fn spawn_http_server(aggregator: MutexedPersonAggregator, repeat_every
     let route_post_person = warp::path(path)
         .and(warp::post())
         .and(with_aggregator(aggregator.clone()))
+        .and(with_constant(path))
         .and(warp::body::json())
         .and_then(post_person);
 

@@ -20,16 +20,20 @@ struct ErrorResult {
     error: String
 }
 
-pub async fn post_person(aggregator: MutexedPersonAggregator, person: PersonData) -> Result<impl Reply, Infallible> {
+pub async fn post_person(aggregator: MutexedPersonAggregator, path: &str, person: PersonData) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.create(&person) {
         Ok(result) => {
-            let (_person_id, person_data) = result; // TODO: Return person_id as Location header
-            Ok(reply::with_status(reply::json(&person_data), StatusCode::CREATED))
+            let (person_id, person_data) = result;
+            let location = format!("/{}/{}", path, person_id);
+            let response = reply::json(&person_data);
+            let response = reply::with_status(response, StatusCode::CREATED);
+            let response = reply::with_header(response,"Location", location);
+            Ok(Box::new(response))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
         }
     }
 }
