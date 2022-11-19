@@ -5,8 +5,9 @@ use crate::database::person_aggregate_table::{create_person_aggregate_table, del
 use crate::database::person_event_table::{create_person_event_table, insert_person_event, read_person_events};
 use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
 use crate::domain::person_aggregate::PersonAggregate;
-use crate::domain::person_event::{PersonData, PersonEvent};
-use crate::domain::person_rest::{PersonPost, PersonPatch};
+use crate::domain::person_data::PersonData;
+use crate::domain::person_event::PersonEvent;
+use crate::domain::person_patch::PersonPatch;
 use crate::util::patch::Patch;
 
 pub struct PersonAggregator {
@@ -22,7 +23,7 @@ impl PersonAggregator {
         Ok(PersonAggregator { conn })
     }
 
-    pub fn create(&mut self, person: &PersonPost) -> Result<PersonAggregate, Box<dyn Error>> {
+    pub fn create(&mut self, person: &PersonData) -> Result<PersonAggregate, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let person_id = insert_person_aggregate(&tx, &person)?;
         let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
@@ -79,10 +80,10 @@ impl PersonAggregator {
         Ok(events)
     }
 
-    fn create_event_for_post(person_id: u32, person: &PersonPost) -> PersonEvent {
+    fn create_event_for_post(person_id: u32, person: &PersonData) -> PersonEvent {
         PersonEvent {
             person_id,
-            data: Patch::Value(PersonData {
+            data: Patch::Value(PersonPatch {
                 name: Some(person.name.clone()),
                 location: match &person.location {
                     Some(x) => Patch::Value(x.clone()),
@@ -99,7 +100,7 @@ impl PersonAggregator {
     fn create_event_for_patch(person_id: u32, person: &PersonPatch) -> PersonEvent {
         PersonEvent {
             person_id,
-            data: Patch::Value(PersonData {
+            data: Patch::Value(PersonPatch { // TODO: Directly clone person?
                 name: person.name.clone(),
                 location: person.location.clone(),
                 spouse_id: person.spouse_id.clone()
@@ -134,14 +135,15 @@ mod tests {
     use crate::database::person_event_table::read_person_events;
     use crate::database::revision_table::read_person_revision;
     use crate::domain::person_aggregate::PersonAggregate;
-    use crate::domain::person_rest::{PersonPost, PersonPatch};
+    use crate::domain::person_data::PersonData;
+    use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
 
     #[test]
     pub fn test_create() {
         let mut aggregator = create_aggregator();
 
-        let person = create_person_post();
+        let person = create_person_data();
         let person_res = aggregator.create(&person);
         assert!(person_res.is_ok());
 
@@ -155,7 +157,7 @@ mod tests {
     pub fn test_update() {
         let mut aggregator = create_aggregator();
 
-        let person = create_person_post();
+        let person = create_person_data();
         let person_update = create_person_patch();
         let person_res = aggregator.create(&person);
         assert!(person_res.is_ok());
@@ -188,7 +190,7 @@ mod tests {
     pub fn test_delete() {
         let mut aggregator = create_aggregator();
 
-        let person = create_person_post();
+        let person = create_person_data();
         let person_res = aggregator.create(&person);
         assert!(person_res.is_ok());
         let person_res = aggregator.delete(1);
@@ -214,7 +216,7 @@ mod tests {
     pub fn test_get_aggregates() {
         let mut aggregator = create_aggregator();
 
-        let person = create_person_post();
+        let person = create_person_data();
         assert!(aggregator.create(&person).is_ok());
         let persons_res = aggregator.get_aggregates();
         assert!(persons_res.is_ok());
@@ -227,7 +229,7 @@ mod tests {
     pub fn test_get_events() {
         let mut aggregator = create_aggregator();
 
-        let person = create_person_post();
+        let person = create_person_data();
         let person_update = create_person_patch();
         assert!(aggregator.create(&person).is_ok());
         assert!(aggregator.update(1, &person_update).is_ok());
@@ -246,8 +248,8 @@ mod tests {
         aggregator.unwrap()
     }
 
-    fn create_person_post() -> PersonPost {
-        PersonPost {
+    fn create_person_data() -> PersonData {
+        PersonData {
             name: String::from("Hans"),
             location: None,
             spouse_id: None

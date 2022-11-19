@@ -2,7 +2,8 @@ use const_format::formatcp;
 use log::{debug, error};
 use rusqlite::{Connection, Error, OptionalExtension, params, Result, Row, ToSql, Transaction};
 use crate::domain::person_aggregate::PersonAggregate;
-use crate::domain::person_rest::{PersonPost, PersonPatch};
+use crate::domain::person_data::PersonData;
+use crate::domain::person_patch::PersonPatch;
 
 const PERSON_AGGREGATE_TABLE: &'static str = "person_aggregate";
 
@@ -43,7 +44,7 @@ pub fn create_person_aggregate_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn insert_person_aggregate(tx: &Transaction, person: &PersonPost) -> Result<u32> {
+pub fn insert_person_aggregate(tx: &Transaction, person: &PersonData) -> Result<u32> {
     debug!("Execute {}\nwith: {:?}", INSERT_PERSON, person);
     let values = params![person.name, person.location, person.spouse_id];
     tx.execute(INSERT_PERSON, values)?;
@@ -117,17 +118,18 @@ mod tests {
     use rusqlite::Connection;
     use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
     use crate::domain::person_aggregate::PersonAggregate;
-    use crate::domain::person_rest::{PersonPost, PersonPatch};
+    use crate::domain::person_data::PersonData;
+    use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
 
     #[test]
     fn test_insert() {
-        let person1 = PersonPost {
+        let person1 = PersonData {
             name: String::from("Hans"),
             location: Some(String::from("Germany")),
             spouse_id: Some(123)
         };
-        let person2 = PersonPost {
+        let person2 = PersonData {
             name: String::from("Inge"),
             location: Some(String::from("Spain")),
             spouse_id: None
@@ -164,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_update() {
-        let person = PersonPost {
+        let person = PersonData {
             name: String::from("Hans"),
             location: Some(String::from("Germany")),
             spouse_id: Some(123)
@@ -213,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let person = PersonPost {
+        let person = PersonData {
             name: String::from("Hans"),
             location: Some(String::from("Germany")),
             spouse_id: Some(123)

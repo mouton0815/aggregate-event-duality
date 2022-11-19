@@ -8,7 +8,8 @@ use warp::http::StatusCode;
 use warp::{reply, Reply, sse};
 use warp::sse::Event;
 use crate::aggregator::person_aggregator::PersonAggregator;
-use crate::domain::person_rest::{PersonPost, PersonPatch};
+use crate::domain::person_data::PersonData;
+use crate::domain::person_patch::PersonPatch;
 use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
 
 
@@ -19,7 +20,7 @@ struct ErrorResult {
     error: String
 }
 
-pub async fn post_person(aggregator: MutexedPersonAggregator, person: PersonPost) -> Result<impl Reply, Infallible> {
+pub async fn post_person(aggregator: MutexedPersonAggregator, person: PersonData) -> Result<impl Reply, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.create(&person) {
         Ok(result) => {

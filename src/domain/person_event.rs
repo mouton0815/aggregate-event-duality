@@ -1,21 +1,6 @@
 use serde::{Serialize, Deserialize};
+use crate::domain::person_patch::PersonPatch;
 use crate::util::patch::Patch;
-
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PersonData {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>, // Name can be updated or left as is, but not deleted
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub location: Patch<String>,
-
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub spouse_id: Patch<u32>
-}
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -23,7 +8,7 @@ pub struct PersonEvent {
     pub person_id: u32,
 
     #[serde(default)]
-    pub data: Patch<PersonData>
+    pub data: Patch<PersonPatch>
 }
 
 #[cfg(test)]
@@ -31,13 +16,14 @@ mod tests {
     use std::fmt::Debug;
     use serde::{Deserialize, Serialize};
     use crate::util::patch::Patch;
-    use crate::domain::person_event::{PersonEvent, PersonData};
+    use crate::domain::person_event::PersonEvent;
+    use crate::domain::person_patch::PersonPatch;
 
     #[test]
     pub fn test_serde_person_event_create() {
         let person_ref = PersonEvent {
             person_id: 10,
-            data: Patch::Value(PersonData {
+            data: Patch::Value(PersonPatch {
                 name: Some(String::from("Hans")),
                 location: Patch::Value(String::from("Nowhere")),
                 spouse_id: Patch::Value(20)
@@ -53,7 +39,7 @@ mod tests {
     pub fn test_serde_person_event_update() {
         let person_ref = PersonEvent {
             person_id: 10,
-            data: Patch::Value(PersonData {
+            data: Patch::Value(PersonPatch {
                 name: None,
                 location: Patch::Null,
                 spouse_id: Patch::Null
