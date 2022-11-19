@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
-use serde::Serialize;
+use serde::{Deserialize,Serialize};
 use crate::domain::person_map::PersonMap;
 
-#[derive(Serialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct LocationMap(BTreeMap<String, Option<PersonMap>>);
 
 impl LocationMap {
@@ -11,9 +11,9 @@ impl LocationMap {
     }
 
     /*
-    pub fn of(location: &str, person_map: Option<PersonMap>) -> Self {
+    pub fn of(location: &str, location_map: Option<LocationMap>) -> Self {
         let mut map = BTreeMap::new();
-        map.insert(location.to_string(), person_map);
+        map.insert(location.to_string(), location_map);
         Self{ 0: map }
     }
     */
@@ -25,7 +25,7 @@ impl LocationMap {
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
-    use serde::Serialize;
+    use serde::{Deserialize,Serialize};
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
@@ -42,7 +42,7 @@ mod tests {
         let mut location_map = LocationMap::new();
         location_map.put("Berlin", Some(person_map));
         let json_ref = r#"{"Berlin":{"1":{"name":"Hans","location":"Berlin"}}}"#;
-        serialize_and_verify(&location_map, json_ref);
+        serde_and_verify(&location_map, json_ref);
     }
 
     #[test]
@@ -50,7 +50,7 @@ mod tests {
         let mut location_map = LocationMap::new();
         location_map.put("Berlin", Some(PersonMap::new()));
         let json_ref = r#"{"Berlin":{}}"#;
-        serialize_and_verify(&location_map, json_ref);
+        serde_and_verify(&location_map, json_ref);
     }
 
     #[test]
@@ -58,20 +58,28 @@ mod tests {
         let mut location_map = LocationMap::new();
         location_map.put("Berlin", None);
         let json_ref = r#"{"Berlin":null}"#;
-        serialize_and_verify(&location_map, json_ref);
+        serde_and_verify(&location_map, json_ref);
     }
 
     #[test]
     pub fn test_location_map_empty() {
         let location_map = LocationMap::new();
         let json_ref = r#"{}"#;
-        serialize_and_verify(&location_map, json_ref);
+        serde_and_verify(&location_map, json_ref);
     }
 
-    fn serialize_and_verify<LocationMap>(location_map_ref: &LocationMap, json_ref: &str)
-        where LocationMap: Serialize + PartialEq + Debug {
+
+    fn serde_and_verify<'a, LocationMap>(location_map_ref: &LocationMap, json_ref: &'a str)
+        where LocationMap: Serialize + Deserialize<'a> + PartialEq + Debug {
+
+        // 1. Serialize location_map_ref and string-compare it to json_ref
         let json = serde_json::to_string(&location_map_ref);
         assert!(json.is_ok());
         assert_eq!(json.unwrap(), String::from(json_ref));
+
+        // 2. Deserialize the serialized json and compare it with location_map_ref
+        let location_map: Result<LocationMap, serde_json::Error> = serde_json::from_str(json_ref);
+        assert!(location_map.is_ok());
+        assert_eq!(location_map.unwrap(), *location_map_ref);
     }
 }

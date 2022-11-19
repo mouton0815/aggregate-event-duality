@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
-use serde::Serialize;
+use serde::{Deserialize,Serialize};
 use crate::domain::person_data::PersonData;
 
 /// A map of persons with their ids as keys.
 /// The implementation with an encapsulated map was chosen to produce the desired json output
 /// <code>{ <person_id>: <person_data>, ... }</code>.
-#[derive(Serialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct PersonMap(BTreeMap<u32, Option<PersonData>>); // TODO: Keys in JSON are always strings
 
 impl PersonMap {
@@ -29,7 +29,7 @@ impl PersonMap {
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
 
@@ -48,7 +48,7 @@ mod tests {
         }));
 
         let json_ref = r#"{"1":{"name":"Hans","location":"Berlin","spouseId":2},"2":{"name":"Inge","location":"Berlin","spouseId":1}}"#;
-        serialize_and_verify(&person_map, json_ref);
+        serde_and_verify(&person_map, json_ref);
     }
 
     #[test]
@@ -62,20 +62,27 @@ mod tests {
         }));
 
         let json_ref = r#"{"1":null,"2":{"name":"Inge","location":"Berlin"}}"#;
-        serialize_and_verify(&person_map, json_ref);
+        serde_and_verify(&person_map, json_ref);
     }
 
     #[test]
     pub fn test_person_map_empty() {
         let person_map = PersonMap::new();
         let json_ref = r#"{}"#;
-        serialize_and_verify(&person_map, json_ref);
+        serde_and_verify(&person_map, json_ref);
     }
 
-    fn serialize_and_verify<PersonMap>(person_map_ref: &PersonMap, json_ref: &str)
-        where PersonMap: Serialize + PartialEq + Debug {
+    fn serde_and_verify<'a, PersonMap>(person_map_ref: &PersonMap, json_ref: &'a str)
+        where PersonMap: Serialize + Deserialize<'a> + PartialEq + Debug {
+
+        // 1. Serialize person_map_ref and string-compare it to json_ref
         let json = serde_json::to_string(&person_map_ref);
         assert!(json.is_ok());
         assert_eq!(json.unwrap(), String::from(json_ref));
+
+        // 2. Deserialize the serialized json and compare it with person_map_ref
+        let person_map: Result<PersonMap, serde_json::Error> = serde_json::from_str(json_ref);
+        assert!(person_map.is_ok());
+        assert_eq!(person_map.unwrap(), *person_map_ref);
     }
 }
