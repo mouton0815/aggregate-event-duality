@@ -2,5 +2,5 @@
 [X] Accept header and/or parameter instead of path variable
 [x] Simplify http_server
 [X] Implement REST DELETE
-[ ] Implement tenant aggregator and corresponding REST GET endpoints
+[ ] Implement location aggregator and corresponding REST GET endpoints
 [X] Clean up Cargo.toml

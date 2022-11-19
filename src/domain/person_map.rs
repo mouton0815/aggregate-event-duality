@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use serde::Serialize;
-use crate::domain::person_event::PersonData;
+use crate::domain::person_data::PersonData;
 
 /// A map of persons with their ids as keys.
 /// The implementation with an encapsulated map was chosen to produce the desired json output
@@ -30,22 +30,21 @@ impl PersonMap {
 mod tests {
     use std::fmt::Debug;
     use serde::Serialize;
-    use crate::domain::person_event::PersonData;
+    use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
-    use crate::util::patch::Patch;
 
     #[test]
     pub fn test_person_map() {
         let mut person_map = PersonMap::new();
         person_map.put(1, Some(PersonData{
-            name: Some("Hans".to_string()),
-            location: Patch::Value("Berlin".to_string()),
-            spouse_id: Patch::Value(2)
+            name: "Hans".to_string(),
+            location: Some("Berlin".to_string()),
+            spouse_id: Some(2)
         }));
         person_map.put(2, Some(PersonData{
-            name: Some("Inge".to_string()),
-            location: Patch::Value("Berlin".to_string()),
-            spouse_id: Patch::Value(1)
+            name: "Inge".to_string(),
+            location: Some("Berlin".to_string()),
+            spouse_id: Some(1)
         }));
 
         let json_ref = r#"{"1":{"name":"Hans","location":"Berlin","spouseId":2},"2":{"name":"Inge","location":"Berlin","spouseId":1}}"#;
@@ -57,9 +56,9 @@ mod tests {
         let mut person_map = PersonMap::new();
         person_map.put(1, None);
         person_map.put(2, Some(PersonData{
-            name: Some("Inge".to_string()),
-            location: Patch::Value("Berlin".to_string()),
-            spouse_id: Patch::Absent
+            name: "Inge".to_string(),
+            location: Some("Berlin".to_string()),
+            spouse_id: None
         }));
 
         let json_ref = r#"{"1":null,"2":{"name":"Inge","location":"Berlin"}}"#;

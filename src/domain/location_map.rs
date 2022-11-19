@@ -26,28 +26,27 @@ impl LocationMap {
 mod tests {
     use std::fmt::Debug;
     use serde::Serialize;
-    use crate::domain::location_map::{LocationMap, PersonMap};
-    use crate::domain::person_event::PersonData;
-    use crate::util::patch::Patch;
+    use crate::domain::location_map::LocationMap;
+    use crate::domain::person_data::PersonData;
+    use crate::domain::person_map::PersonMap;
 
     #[test]
     pub fn test_location_map() {
         let mut person_map = PersonMap::new();
         person_map.put(1, Some(PersonData {
-            name: Some("Hans".to_string()),
-            location: Patch::Value("Berlin".to_string()),
-            spouse_id: Patch::Null
+            name: "Hans".to_string(),
+            location: Some("Berlin".to_string()),
+            spouse_id: None
         }));
 
         let mut location_map = LocationMap::new();
         location_map.put("Berlin", Some(person_map));
-        let json_ref = r#"{"Berlin":{"1":{"name":"Hans","location":"Berlin","spouseId":null}}}"#;
+        let json_ref = r#"{"Berlin":{"1":{"name":"Hans","location":"Berlin"}}}"#;
         serialize_and_verify(&location_map, json_ref);
     }
 
     #[test]
     pub fn test_location_map_empty_persons() {
-        let person_map = PersonMap::new();
         let mut location_map = LocationMap::new();
         location_map.put("Berlin", Some(PersonMap::new()));
         let json_ref = r#"{"Berlin":{}}"#;
