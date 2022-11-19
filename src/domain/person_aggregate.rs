@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 
+// TODO: Deprecated, replace by PersonData
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PersonAggregate {

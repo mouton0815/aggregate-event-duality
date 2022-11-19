@@ -81,38 +81,29 @@ impl PersonAggregator {
     }
 
     fn create_event_for_post(person_id: u32, person: &PersonData) -> PersonEvent {
-        PersonEvent {
-            person_id,
-            data: Patch::Value(PersonPatch {
-                name: Some(person.name.clone()),
-                location: match &person.location {
-                    Some(x) => Patch::Value(x.clone()),
-                    None => Patch::Absent
-                },
-                spouse_id: match person.spouse_id {
-                    Some(x) => Patch::Value(x),
-                    None => Patch::Absent
-                }
-            })
-        }
+        PersonEvent::of( person_id, Some(PersonPatch {
+            name: Some(person.name.clone()),
+            location: match &person.location {
+                Some(x) => Patch::Value(x.clone()),
+                None => Patch::Absent
+            },
+            spouse_id: match person.spouse_id {
+                Some(x) => Patch::Value(x),
+                None => Patch::Absent
+            }
+        }))
     }
 
     fn create_event_for_patch(person_id: u32, person: &PersonPatch) -> PersonEvent {
-        PersonEvent {
-            person_id,
-            data: Patch::Value(PersonPatch { // TODO: Directly clone person?
-                name: person.name.clone(),
-                location: person.location.clone(),
-                spouse_id: person.spouse_id.clone()
-            })
-        }
+        PersonEvent::of(person_id, Some(PersonPatch{ // TODO: Directly clone person?
+            name: person.name.clone(),
+            location: person.location.clone(),
+            spouse_id: person.spouse_id.clone()
+        }))
     }
 
     fn create_event_for_delete(person_id: u32) -> PersonEvent {
-        PersonEvent {
-            person_id,
-            data: Patch::Null
-        }
+        PersonEvent::of(person_id, None)
     }
 
     fn write_event_and_revision(tx: &Transaction, event: &PersonEvent) -> Result<u32, rusqlite::Error> {
