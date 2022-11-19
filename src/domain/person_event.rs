@@ -18,8 +18,6 @@ impl PersonEvent {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Debug;
-    use serde::{Deserialize, Serialize};
     use crate::domain::person_event::PersonEvent;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;

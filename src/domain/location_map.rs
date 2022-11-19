@@ -10,13 +10,6 @@ impl LocationMap {
         Self{ 0: BTreeMap::new() }
     }
 
-    /*
-    pub fn of(location: &str, location_map: Option<LocationMap>) -> Self {
-        let mut map = BTreeMap::new();
-        map.insert(location.to_string(), location_map);
-        Self{ 0: map }
-    }
-    */
     pub fn put(&mut self, location: &str, persons: Option<PersonMap>) {
         self.0.insert(location.to_string(), persons);
     }
@@ -24,8 +17,6 @@ impl LocationMap {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::Debug;
-    use serde::{Deserialize,Serialize};
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
