@@ -1,8 +1,8 @@
 use const_format::formatcp;
 use log::{debug, error};
 use rusqlite::{Connection, Error, OptionalExtension, params, Result, Row, ToSql, Transaction};
-use crate::domain::person_aggregate::PersonAggregate;
 use crate::domain::person_data::PersonData;
+use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 
 const PERSON_AGGREGATE_TABLE: &'static str = "person_aggregate";
@@ -83,41 +83,40 @@ pub fn delete_person_aggregate(tx: &Transaction, person_id: u32) -> Result<bool>
     Ok(row_count == 1)
 }
 
-pub fn read_person_aggregates(tx: &Transaction) -> Result<Vec<PersonAggregate>> {
+pub fn read_person_aggregates(tx: &Transaction) -> Result<PersonMap> {
     debug!("Execute {}", SELECT_PERSONS);
     let mut stmt = tx.prepare(SELECT_PERSONS)?;
     let rows = stmt.query_map([], |row| {
-        row_to_person_aggregate(row)
+        row_to_person_data(row)
     })?;
-    let mut persons = Vec::new();
+    let mut person_map = PersonMap::new();
     for row in rows {
-        persons.push(row?);
+        let (person_id, person_data) = row?;
+        person_map.put(person_id, Some(person_data));
     }
-    Ok(persons)
+    Ok(person_map)
 }
 
-pub fn read_person_aggregate(tx: &Transaction, person_id: u32) -> Result<Option<PersonAggregate>> {
+pub fn read_person_aggregate(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
     debug!("Execute {} with: {}", SELECT_PERSON, person_id);
     let mut stmt = tx.prepare(SELECT_PERSON)?;
     stmt.query_row([person_id], |row | {
-        row_to_person_aggregate(row)
+        Ok(row_to_person_data(row)?.1)
     }).optional()
 }
 
-fn row_to_person_aggregate(row: &Row) -> Result<PersonAggregate> {
-    Ok(PersonAggregate {
-        person_id: row.get(0)?,
+fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
+    Ok((row.get(0)?, PersonData {
         name: row.get(1)?,
         location: row.get(2)?,
         spouse_id: row.get(3)?
-    })
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
     use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
-    use crate::domain::person_aggregate::PersonAggregate;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
@@ -146,22 +145,20 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let ref_persons = [
-            &PersonAggregate {
-                person_id: 1,
+            (1, &PersonData {
                 name: String::from("Hans"),
                 location: Some(String::from("Germany")),
                 spouse_id: Some(123)
-            },
-            &PersonAggregate {
-                person_id: 2,
+            }),
+            (2, &PersonData {
                 name: String::from("Inge"),
                 location: Some(String::from("Spain")),
                 spouse_id: None
-            }
+            })
         ];
         check_results(&mut conn, &ref_persons);
-        check_single_result(&mut conn, 1, ref_persons[0]);
-        check_single_result(&mut conn, 2, ref_persons[1]);
+        check_single_result(&mut conn, ref_persons[0]);
+        check_single_result(&mut conn, ref_persons[1]);
     }
 
     #[test]
@@ -187,15 +184,14 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let ref_persons = [
-            &PersonAggregate {
-                person_id: 1,
+            (1, &PersonData {
                 name: String::from("Hans"),
                 location: None,
                 spouse_id: Some(100)
-            }
+            })
         ];
         check_results(&mut conn, &ref_persons);
-        check_single_result(&mut conn, 1, ref_persons[0]);
+        check_single_result(&mut conn, ref_persons[0]);
     }
     #[test]
 
@@ -250,7 +246,7 @@ mod tests {
         conn
     }
 
-    fn check_results(conn: &mut Connection, ref_persons: &[&PersonAggregate]) {
+    fn check_results(conn: &mut Connection, ref_persons: &[(u32, &PersonData)]) {
         let tx = conn.transaction().unwrap();
 
         let persons = read_person_aggregates(&tx);
@@ -260,20 +256,24 @@ mod tests {
         let persons = persons.unwrap();
         assert_eq!(persons.len(), ref_persons.len());
 
-        for (index, &ref_person) in ref_persons.iter().enumerate() {
-            assert_eq!(persons[index], *ref_person);
+        for (_, &ref_person) in ref_persons.iter().enumerate() {
+            let (person_id, person_data) = ref_person;
+            let person = persons.get(person_id);
+            assert!(person.is_some());
+            let person = person.unwrap();
+            assert_eq!(person, person_data);
         }
     }
 
-    fn check_single_result(conn: &mut Connection, person_id: u32, ref_person: &PersonAggregate) {
+    fn check_single_result(conn: &mut Connection, ref_person: (u32, &PersonData)) {
         let tx = conn.transaction().unwrap();
 
-        let person = read_person_aggregate(&tx, person_id);
+        let person = read_person_aggregate(&tx, ref_person.0);
         assert!(person.is_ok());
         assert!(tx.commit().is_ok());
 
         let person = person.unwrap();
         assert!(person.is_some());
-        assert_eq!(person.unwrap(), *ref_person);
+        assert_eq!(person.unwrap(), *ref_person.1);
     }
 }

@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use crate::domain::person_aggregate::PersonAggregate;
 
+// TODO: Refactor to LocationMap
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LocationAggregate {

@@ -4,9 +4,9 @@ use rusqlite::{Connection, Transaction};
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
 use crate::database::person_event_table::{create_person_event_table, insert_person_event, read_person_events};
 use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
-use crate::domain::person_aggregate::PersonAggregate;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
+use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::patch::Patch;
 
@@ -23,7 +23,7 @@ impl PersonAggregator {
         Ok(PersonAggregator { conn })
     }
 
-    pub fn create(&mut self, person: &PersonData) -> Result<PersonAggregate, Box<dyn Error>> {
+    pub fn create(&mut self, person: &PersonData) -> Result<(u32, PersonData), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let person_id = insert_person_aggregate(&tx, &person)?;
         let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
@@ -31,10 +31,10 @@ impl PersonAggregator {
         Self::write_event_and_revision(&tx, &event)?;
         tx.commit()?;
         info!("Created {:?} from {:?}", aggregate, person);
-        Ok(aggregate)
+        Ok((person_id, aggregate))
     }
 
-    pub fn update(&mut self, person_id: u32, person: &PersonPatch) -> Result<Option<PersonAggregate>, rusqlite::Error> {
+    pub fn update(&mut self, person_id: u32, person: &PersonPatch) -> Result<Option<PersonData>, rusqlite::Error> {
         let tx = self.conn.transaction()?;
         if update_person_aggregate(&tx, person_id, &person)? {
             let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
@@ -65,7 +65,7 @@ impl PersonAggregator {
         }
     }
 
-    pub fn get_aggregates(&mut self) -> Result<(u32, Vec<PersonAggregate>), Box<dyn Error>> {
+    pub fn get_aggregates(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let revision = read_person_revision(&tx)?;
         let persons = read_person_aggregates(&tx)?;
@@ -125,8 +125,8 @@ mod tests {
     use crate::aggregator::person_aggregator::PersonAggregator;
     use crate::database::person_event_table::read_person_events;
     use crate::database::revision_table::read_person_revision;
-    use crate::domain::person_aggregate::PersonAggregate;
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
 
@@ -137,9 +137,11 @@ mod tests {
         let person = create_person_data();
         let person_res = aggregator.create(&person);
         assert!(person_res.is_ok());
+        let (person_id, person_data) = person_res.unwrap();
 
         let person_ref = create_person_ref();
-        assert_eq!(person_res.unwrap(), person_ref);
+        assert_eq!(person_id, 1);
+        assert_eq!(person_data, person_ref);
 
         check_events_and_revision(&mut aggregator, 1);
     }
@@ -155,8 +157,7 @@ mod tests {
         let person_res = aggregator.update(1, &person_update);
         assert!(person_res.is_ok());
 
-        let person_ref = PersonAggregate {
-            person_id: 1,
+        let person_ref = PersonData {
             name: String::from("Inge"),
             location: Some(String::from("Nowhere")),
             spouse_id: Some(12345)
@@ -199,7 +200,7 @@ mod tests {
         let persons_res = aggregator.get_aggregates();
         assert!(persons_res.is_ok());
 
-        let person_ref = (0, Vec::new());
+        let person_ref = (0, PersonMap::new());
         assert_eq!(persons_res.unwrap(), person_ref);
     }
 
@@ -212,7 +213,9 @@ mod tests {
         let persons_res = aggregator.get_aggregates();
         assert!(persons_res.is_ok());
 
-        let person_ref = (1, vec!(create_person_ref()));
+        let mut person_map = PersonMap::new();
+        person_map.put(1, Some(create_person_ref()));
+        let person_ref = (1, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
     }
 
@@ -225,8 +228,8 @@ mod tests {
         assert!(aggregator.create(&person).is_ok());
         assert!(aggregator.update(1, &person_update).is_ok());
 
-        let event_ref1 = r#"{"personId":1,"data":{"name":"Hans"}}"#;
-        let event_ref2 = r#"{"personId":1,"data":{"name":"Inge","location":"Nowhere","spouseId":12345}}"#;
+        let event_ref1 = r#"{"1":{"name":"Hans"}}"#;
+        let event_ref2 = r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":12345}}"#;
         get_events_and_compare(&mut aggregator, 0, &[&event_ref1, &event_ref2]);
         get_events_and_compare(&mut aggregator, 1, &[&event_ref1, &event_ref2]);
         get_events_and_compare(&mut aggregator, 2, &[&event_ref2]);
@@ -255,9 +258,8 @@ mod tests {
         }
     }
 
-    fn create_person_ref() -> PersonAggregate {
-        PersonAggregate {
-            person_id: 1,
+    fn create_person_ref() -> PersonData {
+        PersonData {
             name: String::from("Hans"),
             location: None,
             spouse_id: None
