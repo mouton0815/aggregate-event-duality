@@ -2,30 +2,27 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use crate::domain::person_event::PersonData;
 
+/// A map of persons with their ids as keys.
+/// The implementation with an encapsulated map was chosen to produce the desired json output
+/// <code>{ <person_id>: <person_data>, ... }</code>.
 #[derive(Serialize, Debug, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct PersonMap {
-    #[serde(default)]
-    #[serde(flatten)]
-    person_map: BTreeMap<u32, Option<PersonData>> // TODO: Keys in JSON are always strings
-}
+pub struct PersonMap(BTreeMap<u32, Option<PersonData>>); // TODO: Keys in JSON are always strings
 
 impl PersonMap {
-    pub fn empty() -> Self {
-        Self{ person_map: BTreeMap::new() }
+    pub fn new() -> Self {
+        Self{ 0: BTreeMap::new() }
     }
 
-    pub fn of_one(entry: (u32, Option<PersonData>)) -> Self {
+    /*
+    pub fn of(entry: (u32, Option<PersonData>)) -> Self {
         let mut map = BTreeMap::new();
         map.insert(entry.0, entry.1);
-        Self{ person_map: map }
+        Self{ 0: map }
     }
+    */
 
-    pub fn of_two(entry1: (u32, Option<PersonData>), entry2: (u32, Option<PersonData>)) -> Self {
-        let mut map = BTreeMap::new();
-        map.insert(entry1.0, entry1.1);
-        map.insert(entry2.0, entry2.1);
-        Self{ person_map: map }
+    pub fn put(&mut self, person_id: u32, person_data: Option<PersonData>) {
+        self.0.insert(person_id, person_data);
     }
 }
 
@@ -39,18 +36,17 @@ mod tests {
 
     #[test]
     pub fn test_person_map() {
-        let person_map = PersonMap::of_two(
-            (1, Some(PersonData{
-                name: Some("Hans".to_string()),
-                location: Patch::Value("Berlin".to_string()),
-                spouse_id: Patch::Value(2)
-            })),
-            (2, Some(PersonData{
-                name: Some("Inge".to_string()),
-                location: Patch::Value("Berlin".to_string()),
-                spouse_id: Patch::Value(1)
-            }))
-        );
+        let mut person_map = PersonMap::new();
+        person_map.put(1, Some(PersonData{
+            name: Some("Hans".to_string()),
+            location: Patch::Value("Berlin".to_string()),
+            spouse_id: Patch::Value(2)
+        }));
+        person_map.put(2, Some(PersonData{
+            name: Some("Inge".to_string()),
+            location: Patch::Value("Berlin".to_string()),
+            spouse_id: Patch::Value(1)
+        }));
 
         let json_ref = r#"{"1":{"name":"Hans","location":"Berlin","spouseId":2},"2":{"name":"Inge","location":"Berlin","spouseId":1}}"#;
         serialize_and_verify(&person_map, json_ref);
@@ -58,14 +54,13 @@ mod tests {
 
     #[test]
     pub fn test_person_map_mixed() {
-        let person_map = PersonMap::of_two(
-            (1, None),
-            (2, Some(PersonData{
-                name: Some("Inge".to_string()),
-                location: Patch::Value("Berlin".to_string()),
-                spouse_id: Patch::Absent
-            }))
-        );
+        let mut person_map = PersonMap::new();
+        person_map.put(1, None);
+        person_map.put(2, Some(PersonData{
+            name: Some("Inge".to_string()),
+            location: Patch::Value("Berlin".to_string()),
+            spouse_id: Patch::Absent
+        }));
 
         let json_ref = r#"{"1":null,"2":{"name":"Inge","location":"Berlin"}}"#;
         serialize_and_verify(&person_map, json_ref);
@@ -73,7 +68,7 @@ mod tests {
 
     #[test]
     pub fn test_person_map_empty() {
-        let person_map = PersonMap::empty();
+        let person_map = PersonMap::new();
         let json_ref = r#"{}"#;
         serialize_and_verify(&person_map, json_ref);
     }

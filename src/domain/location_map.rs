@@ -3,22 +3,22 @@ use serde::Serialize;
 use crate::domain::person_map::PersonMap;
 
 #[derive(Serialize, Debug, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct LocationMap {
-    #[serde(default)]
-    #[serde(flatten)]
-    location_map: BTreeMap<String, Option<PersonMap>>
-}
+pub struct LocationMap(BTreeMap<String, Option<PersonMap>>);
 
 impl LocationMap {
-    pub fn empty() -> LocationMap {
-        Self{ location_map: BTreeMap::new() }
+    pub fn new() -> LocationMap {
+        Self{ 0: BTreeMap::new() }
     }
 
+    /*
     pub fn of(location: &str, person_map: Option<PersonMap>) -> Self {
         let mut map = BTreeMap::new();
         map.insert(location.to_string(), person_map);
-        Self{ location_map: map }
+        Self{ 0: map }
+    }
+    */
+    pub fn put(&mut self, location: &str, persons: Option<PersonMap>) {
+        self.0.insert(location.to_string(), persons);
     }
 }
 
@@ -32,37 +32,39 @@ mod tests {
 
     #[test]
     pub fn test_location_map() {
-        let person_map = PersonMap::of_one(
-            (1, Some(PersonData{
-                name: Some("Hans".to_string()),
-                location: Patch::Value("Berlin".to_string()),
-                spouse_id: Patch::Null
-            }))
-        );
+        let mut person_map = PersonMap::new();
+        person_map.put(1, Some(PersonData {
+            name: Some("Hans".to_string()),
+            location: Patch::Value("Berlin".to_string()),
+            spouse_id: Patch::Null
+        }));
 
-        let location_map = LocationMap::of("Berlin", Some(person_map));
+        let mut location_map = LocationMap::new();
+        location_map.put("Berlin", Some(person_map));
         let json_ref = r#"{"Berlin":{"1":{"name":"Hans","location":"Berlin","spouseId":null}}}"#;
         serialize_and_verify(&location_map, json_ref);
     }
 
     #[test]
     pub fn test_location_map_empty_persons() {
-        let person_map = PersonMap::empty();
-        let location_map = LocationMap::of("Berlin", Some(person_map));
+        let person_map = PersonMap::new();
+        let mut location_map = LocationMap::new();
+        location_map.put("Berlin", Some(PersonMap::new()));
         let json_ref = r#"{"Berlin":{}}"#;
         serialize_and_verify(&location_map, json_ref);
     }
 
     #[test]
     pub fn test_location_map_null_persons() {
-        let location_map = LocationMap::of("Berlin", None);
+        let mut location_map = LocationMap::new();
+        location_map.put("Berlin", None);
         let json_ref = r#"{"Berlin":null}"#;
         serialize_and_verify(&location_map, json_ref);
     }
 
     #[test]
     pub fn test_location_map_empty() {
-        let location_map = LocationMap::empty();
+        let location_map = LocationMap::new();
         let json_ref = r#"{}"#;
         serialize_and_verify(&location_map, json_ref);
     }
