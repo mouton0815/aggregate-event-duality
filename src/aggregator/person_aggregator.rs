@@ -4,7 +4,7 @@ use log::{info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::location_aggregate_view::read_location_aggregates;
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
-use crate::database::person_event_table::{create_person_event_table, insert_person_event, read_person_events};
+use crate::database::event_table::{create_event_table, insert_events, read_person_events};
 use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
@@ -21,17 +21,18 @@ impl PersonAggregator {
     pub fn new(db_path: &str) -> Result<PersonAggregator, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
         create_person_aggregate_table(&conn)?;
-        create_person_event_table(&conn)?;
+        create_event_table(&conn)?;
         create_revision_table(&conn)?;
         Ok(PersonAggregator { conn })
     }
 
+    // TODO: Rename to insert?
     pub fn create(&mut self, person: &PersonData) -> Result<(u32, PersonData), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let person_id = insert_person_aggregate(&tx, &person)?;
         let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
-        let event = Self::create_event_for_post(person_id, person);
-        Self::write_event_and_revision(&tx, &event)?;
+        let event = Self::create_person_event_for_insert(person_id, person);
+        Self::write_events_and_revision(&tx, &event)?;
         tx.commit()?;
         info!("Created {:?} from {:?}", aggregate, person);
         Ok((person_id, aggregate))
@@ -41,8 +42,8 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         if update_person_aggregate(&tx, person_id, &person)? {
             let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
-            let event = Self::create_event_for_patch(person_id, person);
-            Self::write_event_and_revision(&tx, &event)?;
+            let event = Self::create_person_event_for_update(person_id, person);
+            Self::write_events_and_revision(&tx, &event)?;
             tx.commit()?;
             info!("Updated {:?} from {:?}", aggregate, person);
             Ok(Some(aggregate))
@@ -56,8 +57,8 @@ impl PersonAggregator {
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         if delete_person_aggregate(&tx, person_id)? {
-            let event = Self::create_event_for_delete(person_id);
-            Self::write_event_and_revision(&tx, &event)?;
+            let event = Self::create_person_event_for_delete(person_id);
+            Self::write_events_and_revision(&tx, &event)?;
             tx.commit()?;
             info!("Deleted person aggregate {}", person_id);
             Ok(true)
@@ -68,7 +69,7 @@ impl PersonAggregator {
         }
     }
 
-    pub fn get_aggregates(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
+    pub fn get_persons(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let revision = read_person_revision(&tx)?;
         let persons = read_person_aggregates(&tx)?;
@@ -76,7 +77,7 @@ impl PersonAggregator {
         Ok((revision, persons))
     }
 
-    pub fn get_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let events = read_person_events(&tx, from_revision)?;
         tx.commit()?;
@@ -84,6 +85,7 @@ impl PersonAggregator {
     }
 
     // TODO: Use streams (for all collection results)
+    // TODO: Put into own class (but then passing a Connection does not work...)
     pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let revision = read_person_revision(&tx)?;
@@ -92,7 +94,7 @@ impl PersonAggregator {
         Ok((revision, locations))
     }
 
-    fn create_event_for_post(person_id: u32, person: &PersonData) -> PersonEvent {
+    fn create_person_event_for_insert(person_id: u32, person: &PersonData) -> PersonEvent {
         PersonEvent::of( person_id, Some(PersonPatch {
             name: Some(person.name.clone()),
             location: match &person.location {
@@ -106,7 +108,7 @@ impl PersonAggregator {
         }))
     }
 
-    fn create_event_for_patch(person_id: u32, person: &PersonPatch) -> PersonEvent {
+    fn create_person_event_for_update(person_id: u32, person: &PersonPatch) -> PersonEvent {
         PersonEvent::of(person_id, Some(PersonPatch{ // TODO: Directly clone person?
             name: person.name.clone(),
             location: person.location.clone(),
@@ -114,28 +116,21 @@ impl PersonAggregator {
         }))
     }
 
-    fn create_event_for_delete(person_id: u32) -> PersonEvent {
+    fn create_person_event_for_delete(person_id: u32) -> PersonEvent {
         PersonEvent::of(person_id, None)
     }
 
-    fn write_event_and_revision(tx: &Transaction, event: &PersonEvent) -> Result<u32, rusqlite::Error> {
-        match serde_json::to_string(&event) {
-            Ok(json) => {
-                let revision = insert_person_event(&tx, json.as_str())?;
-                upsert_person_revision(&tx, revision)?;
-                Ok(revision)
-            },
-            Err(error) => {
-                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
-            }
-        }
+    fn write_events_and_revision(tx: &Transaction, person_event: &PersonEvent) -> Result<u32, rusqlite::Error> {
+        let revision = insert_events(&tx, person_event)?;
+        upsert_person_revision(&tx, revision)?;
+        Ok(revision)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::aggregator::person_aggregator::PersonAggregator;
-    use crate::database::person_event_table::read_person_events;
+    use crate::database::event_table::read_person_events;
     use crate::database::revision_table::read_person_revision;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
@@ -209,7 +204,7 @@ mod tests {
     pub fn test_get_aggregates_empty() {
         let mut aggregator = create_aggregator();
 
-        let persons_res = aggregator.get_aggregates();
+        let persons_res = aggregator.get_persons();
         assert!(persons_res.is_ok());
 
         let person_ref = (0, PersonMap::new());
@@ -222,7 +217,7 @@ mod tests {
 
         let person = create_person_data();
         assert!(aggregator.create(&person).is_ok());
-        let persons_res = aggregator.get_aggregates();
+        let persons_res = aggregator.get_persons();
         assert!(persons_res.is_ok());
 
         let mut person_map = PersonMap::new();
@@ -279,7 +274,7 @@ mod tests {
     }
 
     fn get_events_and_compare(aggregator: &mut PersonAggregator, from_revision: u32, ref_events: &[&str]) {
-        let events = aggregator.get_events(from_revision);
+        let events = aggregator.get_person_events(from_revision);
         assert!(events.is_ok());
         let events = events.unwrap();
         assert_eq!(events.len(), ref_events.len());

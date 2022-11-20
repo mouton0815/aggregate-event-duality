@@ -3,7 +3,7 @@ use log::debug;
 use rusqlite::{Connection, params, Result, Transaction};
 
 enum RevisionType {
-    Person = 1
+    Person = 1 // TODO: Remove this, overly complicated/generalized
 }
 
 const REVISION_TABLE: &'static str = "revision";

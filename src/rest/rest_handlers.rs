@@ -72,7 +72,7 @@ pub async fn delete_person(aggregator: MutexedPersonAggregator, person_id: u32) 
 
 pub async fn get_persons(aggregator: MutexedPersonAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
-    return match aggregator.get_aggregates() {
+    return match aggregator.get_persons() {
         Ok(result) => {
             let (revision, persons) = result;
             Ok(Box::new(reply::with_header(reply::json(&persons), "X-From-Revision", revision)))
@@ -98,7 +98,7 @@ impl PersonEventFetcher {
 impl Fetcher<String> for PersonEventFetcher {
     fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
         let mut aggregator = self.aggregator.lock().unwrap();
-        let results = aggregator.get_events(self.offset);
+        let results = aggregator.get_person_events(self.offset);
         return match results {
             Err(err) => Err(err),
             Ok(events) => {
