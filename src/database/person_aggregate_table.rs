@@ -5,7 +5,7 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 
-const PERSON_AGGREGATE_TABLE: &'static str = "person_aggregate";
+pub const PERSON_AGGREGATE_TABLE: &'static str = "person_aggregate";
 
 const CREATE_PERSON_TABLE : &'static str = formatcp!("
     CREATE TABLE IF NOT EXISTS {} (
@@ -29,7 +29,7 @@ const DELETE_PERSON : &'static str = formatcp!("
 );
 
 const SELECT_PERSONS : &'static str = formatcp!("
-    SELECT personId, name, location, spouseId FROM {} ORDER BY personId",
+    SELECT personId, name, location, spouseId FROM {}",
     PERSON_AGGREGATE_TABLE
 );
 
