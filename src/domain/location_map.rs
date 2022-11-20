@@ -3,14 +3,14 @@ use serde::{Deserialize,Serialize};
 use crate::domain::person_map::PersonMap;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct LocationMap(BTreeMap<String, Option<PersonMap>>);
+pub struct LocationMap(BTreeMap<String, PersonMap>);
 
 impl LocationMap {
     pub fn new() -> LocationMap {
         Self{ 0: BTreeMap::new() }
     }
 
-    pub fn put(&mut self, location: &str, persons: Option<PersonMap>) {
+    pub fn put(&mut self, location: &str, persons: PersonMap) {
         self.0.insert(location.to_string(), persons);
     }
 }
@@ -24,14 +24,14 @@ mod tests {
     #[test]
     pub fn test_location_map() {
         let mut person_map = PersonMap::new();
-        person_map.put(1, Some(PersonData {
+        person_map.put(1, PersonData {
             name: "Hans".to_string(),
             location: Some("Berlin".to_string()),
             spouse_id: None
-        }));
+        });
 
         let mut location_map = LocationMap::new();
-        location_map.put("Berlin", Some(person_map));
+        location_map.put("Berlin", person_map);
         let json_ref = r#"{"Berlin":{"1":{"name":"Hans","location":"Berlin"}}}"#;
         serde_and_verify(&location_map, json_ref);
     }
@@ -39,16 +39,8 @@ mod tests {
     #[test]
     pub fn test_location_map_empty_persons() {
         let mut location_map = LocationMap::new();
-        location_map.put("Berlin", Some(PersonMap::new()));
+        location_map.put("Berlin", PersonMap::new());
         let json_ref = r#"{"Berlin":{}}"#;
-        serde_and_verify(&location_map, json_ref);
-    }
-
-    #[test]
-    pub fn test_location_map_null_persons() {
-        let mut location_map = LocationMap::new();
-        location_map.put("Berlin", None);
-        let json_ref = r#"{"Berlin":null}"#;
         serde_and_verify(&location_map, json_ref);
     }
 

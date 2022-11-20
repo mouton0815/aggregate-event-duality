@@ -23,14 +23,14 @@ pub fn read_location_aggregates(tx: &Transaction) -> Result<LocationMap> {
     for row in rows {
         let (location, person_id, person_data) = row?;
         if last_location.is_some() && last_location.as_ref().unwrap() != &location {
-            location_map.put(last_location.unwrap().as_str(), Some(person_map)); // TODO: PersonMap does not need Option on data!!
+            location_map.put(last_location.unwrap().as_str(), person_map);
             person_map = PersonMap::new();
         }
-        person_map.put(person_id, Some(person_data));
+        person_map.put(person_id, person_data);
         last_location = Some(location);
     }
     if person_map.len() > 0 {
-        location_map.put(last_location.unwrap().as_str(), Some(person_map));
+        location_map.put(last_location.unwrap().as_str(), person_map);
     }
     Ok(location_map)
 }
@@ -101,9 +101,9 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(1, Some(person));
+        person_map.put(1, person);
         let mut location_map = LocationMap::new();
-        location_map.put("Somewhere", Some(person_map));
+        location_map.put("Somewhere", person_map);
 
         let result = read_locations(&mut conn);
         assert_eq!(result, location_map);
@@ -129,10 +129,10 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(1, Some(person1));
-        person_map.put(2, Some(person2));
+        person_map.put(1, person1);
+        person_map.put(2, person2);
         let mut location_map = LocationMap::new();
-        location_map.put("Somewhere", Some(person_map));
+        location_map.put("Somewhere", person_map);
 
         let result = read_locations(&mut conn);
         assert_eq!(result, location_map);
@@ -166,12 +166,12 @@ mod tests {
 
         let mut person_map1 = PersonMap::new();
         let mut person_map2 = PersonMap::new();
-        person_map1.put(1, Some(person1));
-        person_map2.put(2, Some(person2));
-        person_map1.put(3, Some(person3));
+        person_map1.put(1, person1);
+        person_map2.put(2, person2);
+        person_map1.put(3, person3);
         let mut location_map = LocationMap::new();
-        location_map.put("Somewhere", Some(person_map1));
-        location_map.put("Anywhere", Some(person_map2));
+        location_map.put("Somewhere", person_map1);
+        location_map.put("Anywhere", person_map2);
 
         let result = read_locations(&mut conn);
         assert_eq!(result, location_map);

@@ -1,3 +1,4 @@
+// TODO: Rename to aggregator.js
 use std::error::Error;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
@@ -214,7 +215,7 @@ mod tests {
         assert!(persons_res.is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(1, Some(create_person_ref()));
+        person_map.put(1, create_person_ref());
         let person_ref = (1, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
     }

@@ -92,7 +92,7 @@ pub fn read_person_aggregates(tx: &Transaction) -> Result<PersonMap> {
     let mut person_map = PersonMap::new();
     for row in rows {
         let (person_id, person_data) = row?;
-        person_map.put(person_id, Some(person_data));
+        person_map.put(person_id, person_data);
     }
     Ok(person_map)
 }
@@ -259,8 +259,6 @@ mod tests {
         for (_, &ref_person) in ref_persons.iter().enumerate() {
             let (person_id, person_data) = ref_person;
             let person = persons.get(person_id);
-            assert!(person.is_some());
-            let person = person.unwrap();
             assert_eq!(person, person_data);
         }
     }
