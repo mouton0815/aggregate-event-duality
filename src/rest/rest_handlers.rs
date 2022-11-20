@@ -118,3 +118,17 @@ pub async fn get_person_events(aggregator: MutexedPersonAggregator, repeat_every
     });
     Ok(sse::reply(stream))
 }
+
+pub async fn get_locations(aggregator: MutexedPersonAggregator) -> Result<Box<dyn Reply>, Infallible> {
+    let mut aggregator = aggregator.lock().unwrap();
+    return match aggregator.get_locations() {
+        Ok(result) => {
+            let (revision, locations) = result;
+            Ok(Box::new(reply::with_header(reply::json(&locations), "X-From-Revision", revision)))
+        },
+        Err(error) => {
+            let message = ErrorResult{ error: error.to_string() };
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))) // TODO: Better errors
+        }
+    }
+}

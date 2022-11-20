@@ -47,7 +47,7 @@ fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
 
 #[cfg(test)]
 mod tests {
-    use rusqlite::{Connection, Result, Transaction};
+    use rusqlite::Connection;
     use crate::database::location_aggregate_view::read_location_aggregates;
     use crate::database::person_aggregate_table::{create_person_aggregate_table, insert_person_aggregate};
     use crate::domain::location_map::LocationMap;

@@ -2,9 +2,11 @@
 use std::error::Error;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
+use crate::database::location_aggregate_view::read_location_aggregates;
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
 use crate::database::person_event_table::{create_person_event_table, insert_person_event, read_person_events};
 use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
+use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
 use crate::domain::person_map::PersonMap;
@@ -79,6 +81,15 @@ impl PersonAggregator {
         let events = read_person_events(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
+    }
+
+    // TODO: Use streams (for all collection results)
+    pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
+        let tx = self.conn.transaction()?;
+        let revision = read_person_revision(&tx)?;
+        let locations = read_location_aggregates(&tx)?;
+        tx.commit()?;
+        Ok((revision, locations))
     }
 
     fn create_event_for_post(person_id: u32, person: &PersonData) -> PersonEvent {
