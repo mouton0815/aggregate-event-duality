@@ -2,9 +2,9 @@
 use std::error::Error;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
+use crate::database::person_event_table::{create_person_event_table, insert_person_event, read_person_events};
 use crate::database::location_aggregate_view::read_location_aggregates;
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
-use crate::database::event_table::{create_event_table, insert_events, read_person_events};
 use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
@@ -21,7 +21,7 @@ impl PersonAggregator {
     pub fn new(db_path: &str) -> Result<PersonAggregator, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
         create_person_aggregate_table(&conn)?;
-        create_event_table(&conn)?;
+        create_person_event_table(&conn)?;
         create_revision_table(&conn)?;
         Ok(PersonAggregator { conn })
     }
@@ -42,8 +42,9 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         if update_person_aggregate(&tx, person_id, &person)? {
             let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
-            let event = Self::create_person_event_for_update(person_id, person);
-            Self::write_events_and_revision(&tx, &event)?;
+            let person_event = Self::create_person_event_for_update(person_id, person);
+            // let location_event = LocationEvent::of("foo", Some(person_event));
+            Self::write_events_and_revision(&tx, &person_event)?;
             tx.commit()?;
             info!("Updated {:?} from {:?}", aggregate, person);
             Ok(Some(aggregate))
@@ -121,7 +122,7 @@ impl PersonAggregator {
     }
 
     fn write_events_and_revision(tx: &Transaction, person_event: &PersonEvent) -> Result<u32, rusqlite::Error> {
-        let revision = insert_events(&tx, person_event)?;
+        let revision = insert_person_event(&tx, person_event)?;
         upsert_person_revision(&tx, revision)?;
         Ok(revision)
     }
@@ -130,7 +131,7 @@ impl PersonAggregator {
 #[cfg(test)]
 mod tests {
     use crate::aggregator::person_aggregator::PersonAggregator;
-    use crate::database::event_table::read_person_events;
+    use crate::database::person_event_table::read_person_events;
     use crate::database::revision_table::read_person_revision;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
