@@ -11,7 +11,6 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
-use crate::util::patch::Patch;
 
 pub struct PersonAggregator {
     conn: Connection
@@ -32,7 +31,7 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         let person_id = insert_person_aggregate(&tx, &person)?;
         let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
-        let event = Self::create_person_event_for_insert(person_id, person);
+        let event = PersonEvent::for_insert(person_id, person);
         Self::write_person_event_and_revision(&tx, &event)?;
         tx.commit()?;
         info!("Created {:?} from {:?}", aggregate, person);
@@ -43,7 +42,7 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         if update_person_aggregate(&tx, person_id, &person)? {
             let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
-            let person_event = Self::create_person_event_for_update(person_id, person);
+            let person_event = PersonEvent::for_update(person_id, person);
             // let location_event = LocationEvent::of("foo", Some(person_event));
             Self::write_person_event_and_revision(&tx, &person_event)?;
             tx.commit()?;
@@ -59,7 +58,7 @@ impl PersonAggregator {
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         if delete_person_aggregate(&tx, person_id)? {
-            let event = Self::create_person_event_for_delete(person_id);
+            let event = PersonEvent::for_delete(person_id);
             Self::write_person_event_and_revision(&tx, &event)?;
             tx.commit()?;
             info!("Deleted person aggregate {}", person_id);
@@ -94,32 +93,6 @@ impl PersonAggregator {
         let locations = read_location_aggregates(&tx)?;
         tx.commit()?;
         Ok((revision, locations))
-    }
-
-    fn create_person_event_for_insert(person_id: u32, person: &PersonData) -> PersonEvent {
-        PersonEvent::of( person_id, Some(PersonPatch {
-            name: Some(person.name.clone()),
-            location: match &person.location {
-                Some(x) => Patch::Value(x.clone()),
-                None => Patch::Absent
-            },
-            spouse_id: match person.spouse_id {
-                Some(x) => Patch::Value(x),
-                None => Patch::Absent
-            }
-        }))
-    }
-
-    fn create_person_event_for_update(person_id: u32, person: &PersonPatch) -> PersonEvent {
-        PersonEvent::of(person_id, Some(PersonPatch{ // TODO: Directly clone person?
-            name: person.name.clone(),
-            location: person.location.clone(),
-            spouse_id: person.spouse_id.clone()
-        }))
-    }
-
-    fn create_person_event_for_delete(person_id: u32) -> PersonEvent {
-        PersonEvent::of(person_id, None)
     }
 
     fn write_person_event_and_revision(tx: &Transaction, event: &PersonEvent) -> Result<u32, rusqlite::Error> {

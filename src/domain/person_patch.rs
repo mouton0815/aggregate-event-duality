@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use crate::util::patch::Patch;
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PersonPatch {
     #[serde(default)]

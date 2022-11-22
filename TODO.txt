@@ -5,3 +5,4 @@
 [X] Clean up Cargo.toml
 [X] Return Location header in POST result
 [ ] Implement location aggregator and corresponding REST GET endpoints
+[ ] Migrate person_aggregate_table to a namespace class

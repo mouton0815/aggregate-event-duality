@@ -9,7 +9,7 @@ use crate::domain::person_event::PersonEvent;
 pub struct LocationEvent(BTreeMap<String, Option<PersonEvent>>);
 
 impl LocationEvent {
-    pub fn of(location: &str, person_event: Option<PersonEvent>) -> Self {
+    pub fn create(location: &str, person_event: Option<PersonEvent>) -> Self {
         let mut map = BTreeMap::new();
         map.insert(location.to_string(), person_event);
         Self{ 0: map }
@@ -19,38 +19,37 @@ impl LocationEvent {
 #[cfg(test)]
 mod tests {
     use crate::domain::location_event::LocationEvent;
+    use crate::domain::person_data::PersonData;
     use crate::domain::person_event::PersonEvent;
-    use crate::domain::person_patch::PersonPatch;
-    use crate::util::patch::Patch;
 
     #[test]
     pub fn test_location_event_values() {
-        let person_event = PersonEvent::of(3, Some(PersonPatch{
-            name: Some("Hans".to_string()),
-            location: Patch::Value("Here".to_string()),
-            spouse_id: Patch::Absent
-        }));
-        let location_event = LocationEvent::of("Here", Some(person_event));
+        let person_event = PersonEvent::for_insert(3, &PersonData{
+            name: "Hans".to_string(),
+            location: Some("Here".to_string()),
+            spouse_id: None
+        });
+        let location_event = LocationEvent::create("Here", Some(person_event));
         let json_ref = r#"{"Here":{"3":{"name":"Hans","location":"Here"}}}"#;
         serde_and_verify(&location_event, json_ref);
     }
 
     #[test]
     pub fn test_person_event_null_person() {
-        let person_event = PersonEvent::of(7, None);
-        let location_event = LocationEvent::of("Here", Some(person_event));
+        let person_event = PersonEvent::for_delete(7);
+        let location_event = LocationEvent::create("Here", Some(person_event));
         let json_ref = r#"{"Here":{"7":null}}"#;
         serde_and_verify(&location_event, json_ref);
     }
 
     #[test]
     pub fn test_person_event_null_location() {
-        let location_event = LocationEvent::of("Here", None);
+        let location_event = LocationEvent::create("Here", None);
         let json_ref = r#"{"Here":null}"#;
         serde_and_verify(&location_event, json_ref);
     }
 
-    fn serde_and_verify(location_event_ref: &LocationEvent, json_ref: & str) {
+    fn serde_and_verify(location_event_ref: &LocationEvent, json_ref: &str) {
         // 1. Serialize location_event_ref and string-compare it to json_ref
         let json = serde_json::to_string(&location_event_ref);
         assert!(json.is_ok());
