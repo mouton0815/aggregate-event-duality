@@ -2,7 +2,7 @@
 use std::error::Error;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
-use crate::database::person_event_table::{create_person_event_table, insert_person_event, read_person_events};
+use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_aggregate_view::read_location_aggregates;
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
 use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
@@ -20,8 +20,9 @@ pub struct PersonAggregator {
 impl PersonAggregator {
     pub fn new(db_path: &str) -> Result<PersonAggregator, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
+        PersonEventTable::create_table(&conn)?;
+        LocationEventTable::create_table(&conn)?;
         create_person_aggregate_table(&conn)?;
-        create_person_event_table(&conn)?;
         create_revision_table(&conn)?;
         Ok(PersonAggregator { conn })
     }
@@ -32,7 +33,7 @@ impl PersonAggregator {
         let person_id = insert_person_aggregate(&tx, &person)?;
         let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
         let event = Self::create_person_event_for_insert(person_id, person);
-        Self::write_events_and_revision(&tx, &event)?;
+        Self::write_person_event_and_revision(&tx, &event)?;
         tx.commit()?;
         info!("Created {:?} from {:?}", aggregate, person);
         Ok((person_id, aggregate))
@@ -44,7 +45,7 @@ impl PersonAggregator {
             let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
             let person_event = Self::create_person_event_for_update(person_id, person);
             // let location_event = LocationEvent::of("foo", Some(person_event));
-            Self::write_events_and_revision(&tx, &person_event)?;
+            Self::write_person_event_and_revision(&tx, &person_event)?;
             tx.commit()?;
             info!("Updated {:?} from {:?}", aggregate, person);
             Ok(Some(aggregate))
@@ -59,7 +60,7 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         if delete_person_aggregate(&tx, person_id)? {
             let event = Self::create_person_event_for_delete(person_id);
-            Self::write_events_and_revision(&tx, &event)?;
+            Self::write_person_event_and_revision(&tx, &event)?;
             tx.commit()?;
             info!("Deleted person aggregate {}", person_id);
             Ok(true)
@@ -80,7 +81,7 @@ impl PersonAggregator {
 
     pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let events = read_person_events(&tx, from_revision)?;
+        let events = PersonEventTable::read(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
     }
@@ -121,17 +122,23 @@ impl PersonAggregator {
         PersonEvent::of(person_id, None)
     }
 
-    fn write_events_and_revision(tx: &Transaction, person_event: &PersonEvent) -> Result<u32, rusqlite::Error> {
-        let revision = insert_person_event(&tx, person_event)?;
-        upsert_person_revision(&tx, revision)?;
-        Ok(revision)
+    fn write_person_event_and_revision(tx: &Transaction, event: &PersonEvent) -> Result<u32, rusqlite::Error> {
+        match serde_json::to_string(&event) {
+            Ok(json) => {
+                let revision = PersonEventTable::insert(&tx, json.as_str())?;
+                upsert_person_revision(&tx, revision)?;
+                Ok(revision)
+            },
+            Err(error) => {
+                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::aggregator::person_aggregator::PersonAggregator;
-    use crate::database::person_event_table::read_person_events;
     use crate::database::revision_table::read_person_revision;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
@@ -287,10 +294,10 @@ mod tests {
     fn check_events_and_revision(aggregator: &mut PersonAggregator, revision_ref: u32) {
         let tx = aggregator.conn.transaction().unwrap();
         let revision = read_person_revision(&tx);
+        assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), revision_ref);
-        // TODO: Better use aggregator.get_events(0), but this means duplicate borrowing
-        let events = read_person_events(&tx, 0);
+        let events = aggregator.get_person_events(0);
         assert!(events.is_ok());
         assert_eq!(events.unwrap().len(), revision_ref as usize);
     }
