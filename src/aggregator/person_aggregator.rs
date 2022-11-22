@@ -5,7 +5,7 @@ use rusqlite::{Connection, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_aggregate_view::read_location_aggregates;
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
-use crate::database::revision_table::{create_revision_table, read_person_revision, upsert_person_revision};
+use crate::database::revision_table::{RevisionTable, RevisionType};
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
@@ -20,10 +20,10 @@ pub struct PersonAggregator {
 impl PersonAggregator {
     pub fn new(db_path: &str) -> Result<PersonAggregator, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
+        create_person_aggregate_table(&conn)?;
         PersonEventTable::create_table(&conn)?;
         LocationEventTable::create_table(&conn)?;
-        create_person_aggregate_table(&conn)?;
-        create_revision_table(&conn)?;
+        RevisionTable::create_table(&conn)?;
         Ok(PersonAggregator { conn })
     }
 
@@ -73,7 +73,7 @@ impl PersonAggregator {
 
     pub fn get_persons(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let revision = read_person_revision(&tx)?;
+        let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
         let persons = read_person_aggregates(&tx)?;
         tx.commit()?;
         Ok((revision, persons))
@@ -90,7 +90,7 @@ impl PersonAggregator {
     // TODO: Put into own class (but then passing a Connection does not work...)
     pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let revision = read_person_revision(&tx)?;
+        let revision = RevisionTable::read(&tx, RevisionType::LOCATION)?;
         let locations = read_location_aggregates(&tx)?;
         tx.commit()?;
         Ok((revision, locations))
@@ -126,7 +126,7 @@ impl PersonAggregator {
         match serde_json::to_string(&event) {
             Ok(json) => {
                 let revision = PersonEventTable::insert(&tx, json.as_str())?;
-                upsert_person_revision(&tx, revision)?;
+                RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
                 Ok(revision)
             },
             Err(error) => {
@@ -139,7 +139,7 @@ impl PersonAggregator {
 #[cfg(test)]
 mod tests {
     use crate::aggregator::person_aggregator::PersonAggregator;
-    use crate::database::revision_table::read_person_revision;
+    use crate::database::revision_table::{RevisionTable, RevisionType};
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
@@ -158,7 +158,7 @@ mod tests {
         assert_eq!(person_id, 1);
         assert_eq!(person_data, person_ref);
 
-        check_events_and_revision(&mut aggregator, 1);
+        check_person_events_and_revision(&mut aggregator, 1);
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
 
         assert_eq!(person_res.unwrap(), Some(person_ref));
 
-        check_events_and_revision(&mut aggregator, 2);
+        check_person_events_and_revision(&mut aggregator, 2);
     }
 
     #[test]
@@ -205,7 +205,7 @@ mod tests {
         let person_res = person_res.unwrap();
         assert!(person_res);
 
-        check_events_and_revision(&mut aggregator, 2);
+        check_person_events_and_revision(&mut aggregator, 2);
     }
 
     #[test]
@@ -245,10 +245,10 @@ mod tests {
 
         let event_ref1 = r#"{"1":{"name":"Hans"}}"#;
         let event_ref2 = r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":12345}}"#;
-        get_events_and_compare(&mut aggregator, 0, &[&event_ref1, &event_ref2]);
-        get_events_and_compare(&mut aggregator, 1, &[&event_ref1, &event_ref2]);
-        get_events_and_compare(&mut aggregator, 2, &[&event_ref2]);
-        get_events_and_compare(&mut aggregator, 3, &[]);
+        get_person_events_and_compare(&mut aggregator, 0, &[&event_ref1, &event_ref2]);
+        get_person_events_and_compare(&mut aggregator, 1, &[&event_ref1, &event_ref2]);
+        get_person_events_and_compare(&mut aggregator, 2, &[&event_ref2]);
+        get_person_events_and_compare(&mut aggregator, 3, &[]);
     }
 
     fn create_aggregator() -> PersonAggregator {
@@ -281,7 +281,7 @@ mod tests {
         }
     }
 
-    fn get_events_and_compare(aggregator: &mut PersonAggregator, from_revision: u32, ref_events: &[&str]) {
+    fn get_person_events_and_compare(aggregator: &mut PersonAggregator, from_revision: u32, ref_events: &[&str]) {
         let events = aggregator.get_person_events(from_revision);
         assert!(events.is_ok());
         let events = events.unwrap();
@@ -291,9 +291,9 @@ mod tests {
         }
     }
 
-    fn check_events_and_revision(aggregator: &mut PersonAggregator, revision_ref: u32) {
+    fn check_person_events_and_revision(aggregator: &mut PersonAggregator, revision_ref: u32) {
         let tx = aggregator.conn.transaction().unwrap();
-        let revision = read_person_revision(&tx);
+        let revision = RevisionTable::read(&tx, RevisionType::PERSON);
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), revision_ref);
