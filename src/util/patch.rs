@@ -1,3 +1,4 @@
+use core::panicking::panic;
 use rusqlite::ToSql;
 use rusqlite::types::ToSqlOutput;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -13,11 +14,33 @@ impl<T> Patch<T> {
     pub const fn is_value(&self) -> bool {
         matches!(*self, Patch::Value(_))
     }
+
     pub const fn is_null(&self) -> bool {
         matches!(*self, Patch::Null)
     }
+
     pub const fn is_absent(&self) -> bool {
         matches!(*self, Patch::Absent)
+    }
+
+    /*
+    // TODO: Unit tests
+    pub const fn as_ref(&self) -> Patch<&T> {
+        match *self {
+            Patch::Value(ref x) => Patch::Value(x),
+            Patch::Absent => Patch::Absent,
+            Patch::Null => Patch::Null
+        }
+    }
+    */
+
+    // TODO: Unit tests
+    pub const fn unwrap(self) -> T {
+        match self {
+            Patch::Value(val) => val,
+            Patch::Absent => panic!("called `Patch::unwrap()` on an `Absent` value"),
+            Patch::Null => panic!("called `Patch::unwrap()` on a `Null` value")
+        }
     }
 }
 

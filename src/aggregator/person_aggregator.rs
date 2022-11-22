@@ -6,6 +6,7 @@ use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_aggregate_view::read_location_aggregates;
 use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
 use crate::database::revision_table::{RevisionTable, RevisionType};
+use crate::domain::location_event::LocationEvent;
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
@@ -31,8 +32,13 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         let person_id = insert_person_aggregate(&tx, &person)?;
         let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
-        let event = PersonEvent::for_insert(person_id, person);
-        Self::write_person_event_and_revision(&tx, &event)?;
+        let person_event = PersonEvent::for_insert(person_id, &person);
+        Self::write_person_event_and_revision(&tx, &person_event)?;
+        if person.location.is_some() {
+            let location = person.location.unwrap().as_str();
+            let location_event = LocationEvent::for_upsert(location, person_event);
+            Self::write_location_event_and_revision(&tx, &location_event)?;
+        }
         tx.commit()?;
         info!("Created {:?} from {:?}", aggregate, person);
         Ok((person_id, aggregate))
@@ -45,6 +51,13 @@ impl PersonAggregator {
             let person_event = PersonEvent::for_update(person_id, person);
             // let location_event = LocationEvent::of("foo", Some(person_event));
             Self::write_person_event_and_revision(&tx, &person_event)?;
+            if person.location.is_value() {
+                let location = person.location.unwrap().as_str();
+                let location_event = LocationEvent::for_upsert(location, person_event);
+                Self::write_location_event_and_revision(&tx, &location_event)?;
+            } else if person.location.is_null() {
+                // TODO: Check if the location to be removed is the last one for the aggregate
+            }
             tx.commit()?;
             info!("Updated {:?} from {:?}", aggregate, person);
             Ok(Some(aggregate))
@@ -58,8 +71,9 @@ impl PersonAggregator {
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         if delete_person_aggregate(&tx, person_id)? {
-            let event = PersonEvent::for_delete(person_id);
-            Self::write_person_event_and_revision(&tx, &event)?;
+            let person_event = PersonEvent::for_delete(person_id);
+            Self::write_person_event_and_revision(&tx, &person_event)?;
+            // TODO: Update the location aggregate
             tx.commit()?;
             info!("Deleted person aggregate {}", person_id);
             Ok(true)
@@ -100,6 +114,19 @@ impl PersonAggregator {
             Ok(json) => {
                 let revision = PersonEventTable::insert(&tx, json.as_str())?;
                 RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
+                Ok(revision)
+            },
+            Err(error) => {
+                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
+            }
+        }
+    }
+
+    fn write_location_event_and_revision(tx: &Transaction, event: &LocationEvent) -> Result<u32, rusqlite::Error> {
+        match serde_json::to_string(&event) {
+            Ok(json) => {
+                let revision = LocationEventTable::insert(&tx, json.as_str())?;
+                RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
                 Ok(revision)
             },
             Err(error) => {

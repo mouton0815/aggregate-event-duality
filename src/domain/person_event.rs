@@ -17,7 +17,7 @@ impl PersonEvent {
         Self{ 0: map }
     }
 
-    pub fn for_insert(person_id: u32, person: &PersonData) -> PersonEvent {
+    pub fn for_insert(person_id: u32, person: &PersonData) -> Self {
         Self::new(person_id, Some(PersonPatch {
             name: Some(person.name.clone()),
             location: match &person.location {
@@ -31,11 +31,11 @@ impl PersonEvent {
         }))
     }
 
-    pub fn for_update(person_id: u32, person: &PersonPatch) -> PersonEvent {
+    pub fn for_update(person_id: u32, person: &PersonPatch) -> Self {
         Self::new(person_id, Some(person.clone()))
     }
 
-    pub fn for_delete(person_id: u32) -> PersonEvent {
+    pub fn for_delete(person_id: u32) -> Self {
         Self::new(person_id, None)
     }
 }

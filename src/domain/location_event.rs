@@ -9,10 +9,18 @@ use crate::domain::person_event::PersonEvent;
 pub struct LocationEvent(BTreeMap<String, Option<PersonEvent>>);
 
 impl LocationEvent {
-    pub fn create(location: &str, person_event: Option<PersonEvent>) -> Self {
+    fn new(location: &str, person_event: Option<PersonEvent>) -> Self {
         let mut map = BTreeMap::new();
         map.insert(location.to_string(), person_event);
         Self{ 0: map }
+    }
+
+    pub fn for_upsert(location: &str, person_event: PersonEvent) -> Self {
+        Self::new(location, Some(person_event))
+    }
+
+    pub fn for_delete(location: &str) -> Self {
+        Self::new(location, None)
     }
 }
 
@@ -29,7 +37,7 @@ mod tests {
             location: Some("Here".to_string()),
             spouse_id: None
         });
-        let location_event = LocationEvent::create("Here", Some(person_event));
+        let location_event = LocationEvent::for_upsert("Here", person_event);
         let json_ref = r#"{"Here":{"3":{"name":"Hans","location":"Here"}}}"#;
         serde_and_verify(&location_event, json_ref);
     }
@@ -37,14 +45,14 @@ mod tests {
     #[test]
     pub fn test_person_event_null_person() {
         let person_event = PersonEvent::for_delete(7);
-        let location_event = LocationEvent::create("Here", Some(person_event));
+        let location_event = LocationEvent::for_upsert("Here", person_event);
         let json_ref = r#"{"Here":{"7":null}}"#;
         serde_and_verify(&location_event, json_ref);
     }
 
     #[test]
     pub fn test_person_event_null_location() {
-        let location_event = LocationEvent::create("Here", None);
+        let location_event = LocationEvent::for_delete("Here");
         let json_ref = r#"{"Here":null}"#;
         serde_and_verify(&location_event, json_ref);
     }
