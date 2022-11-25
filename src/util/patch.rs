@@ -1,4 +1,3 @@
-use core::panicking::panic;
 use rusqlite::ToSql;
 use rusqlite::types::ToSqlOutput;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -23,8 +22,6 @@ impl<T> Patch<T> {
         matches!(*self, Patch::Absent)
     }
 
-    /*
-    // TODO: Unit tests
     pub const fn as_ref(&self) -> Patch<&T> {
         match *self {
             Patch::Value(ref x) => Patch::Value(x),
@@ -32,10 +29,9 @@ impl<T> Patch<T> {
             Patch::Null => Patch::Null
         }
     }
-    */
 
     // TODO: Unit tests
-    pub const fn unwrap(self) -> T {
+    pub fn unwrap(self) -> T {
         match self {
             Patch::Value(val) => val,
             Patch::Absent => panic!("called `Patch::unwrap()` on an `Absent` value"),
@@ -109,7 +105,34 @@ mod tests {
     }
 
     #[test]
-    pub fn test_patch_value() {
+    pub fn test_unwrap() {
+        let t = Patch::Value(String::from("123"));
+        let r : String = t.unwrap();
+        assert_eq!(r, "123");
+    }
+
+    #[test]
+    pub fn test_as_ref() {
+        let t = Patch::Value(String::from("123"));
+        let r : Patch<&String> = t.as_ref();
+        assert_eq!(r.unwrap(), "123");
+    }
+
+    #[test]
+    pub fn test_from_some() {
+        let t : Patch<u32> = Patch::from(Some(123));
+        assert!(t.is_value());
+        assert_eq!(t.unwrap(), 123);
+    }
+
+    #[test]
+    pub fn test_from_none() {
+        let t : Patch<u32> = Patch::from(None);
+        assert!(t.is_null());
+    }
+
+    #[test]
+    pub fn test_serde_value() {
         let t = Patch::Value(String::from("123"));
         assert!(t.is_value());
         assert!(!t.is_null());
@@ -121,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_patch_null() {
+    pub fn test_serde_null() {
         let t: Patch<u32> = Patch::Null;
         assert!(!t.is_value());
         assert!(t.is_null());
@@ -133,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_patch_absent() {
+    pub fn test_serde_absent() {
         let t: Patch<u32> = Patch::Absent;
         assert!(!t.is_value());
         assert!(!t.is_null());
