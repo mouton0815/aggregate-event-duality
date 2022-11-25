@@ -1,10 +1,11 @@
 use const_format::formatcp;
 use log::{debug, error};
-use rusqlite::{Connection, Error, OptionalExtension, params, Result, Row, ToSql, Transaction};
+use rusqlite::{Connection, Error, OptionalExtension, params, Params, params_from_iter, Result, Row, ToSql, Transaction};
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 
+// TODO: Just name table and file "person"?
 pub const PERSON_AGGREGATE_TABLE: &'static str = "person_aggregate";
 
 const CREATE_PERSON_TABLE : &'static str = formatcp!("
@@ -30,6 +31,11 @@ const DELETE_PERSON : &'static str = formatcp!("
 
 const SELECT_PERSONS : &'static str = formatcp!("
     SELECT personId, name, location, spouseId FROM {}",
+    PERSON_AGGREGATE_TABLE
+);
+
+const SELECT_PERSONS_WITH_LOCATION: &'static str = formatcp!("
+    SELECT personId, name, location, spouseId FROM {} WHERE location = ?",
     PERSON_AGGREGATE_TABLE
 );
 
@@ -83,18 +89,15 @@ pub fn delete_person_aggregate(tx: &Transaction, person_id: u32) -> Result<bool>
     Ok(row_count == 1)
 }
 
+// TODO: Just call it "read_persons"? (other functions accordingly)
 pub fn read_person_aggregates(tx: &Transaction) -> Result<PersonMap> {
     debug!("Execute {}", SELECT_PERSONS);
-    let mut stmt = tx.prepare(SELECT_PERSONS)?;
-    let rows = stmt.query_map([], |row| {
-        row_to_person_data(row)
-    })?;
-    let mut person_map = PersonMap::new();
-    for row in rows {
-        let (person_id, person_data) = row?;
-        person_map.put(person_id, person_data);
-    }
-    Ok(person_map)
+    read_persons(&tx, SELECT_PERSONS, &[])
+}
+
+pub fn read_persons_with_location(tx: &Transaction, location: &str) -> Result<PersonMap> {
+    debug!("Execute {} with {}", SELECT_PERSONS_WITH_LOCATION, location);
+    read_persons(&tx, SELECT_PERSONS_WITH_LOCATION, &[location])
 }
 
 pub fn read_person_aggregate(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
@@ -103,6 +106,20 @@ pub fn read_person_aggregate(tx: &Transaction, person_id: u32) -> Result<Option<
     stmt.query_row([person_id], |row | {
         Ok(row_to_person_data(row)?.1)
     }).optional()
+}
+
+pub fn read_persons(tx: &Transaction, query: &str, params: &[&str]) -> Result<PersonMap> {
+    debug!("Execute {}", query);
+    let mut stmt = tx.prepare(query)?;
+    let rows = stmt.query_map(params_from_iter(params), |row| {
+        row_to_person_data(row)
+    })?;
+    let mut person_map = PersonMap::new();
+    for row in rows {
+        let (person_id, person_data) = row?;
+        person_map.put(person_id, person_data);
+    }
+    Ok(person_map)
 }
 
 fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
@@ -116,23 +133,15 @@ fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
+    use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, read_persons_with_location, update_person_aggregate};
     use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
 
     #[test]
     fn test_insert() {
-        let person1 = PersonData {
-            name: String::from("Hans"),
-            location: Some(String::from("Germany")),
-            spouse_id: Some(123)
-        };
-        let person2 = PersonData {
-            name: String::from("Inge"),
-            location: Some(String::from("Spain")),
-            spouse_id: None
-        };
+        let person1 = PersonData::new("Hans", Some("Germany"), Some(123));
+        let person2 = PersonData::new("Inge", Some("Spain"), None);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -145,16 +154,8 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let ref_persons = [
-            (1, &PersonData {
-                name: String::from("Hans"),
-                location: Some(String::from("Germany")),
-                spouse_id: Some(123)
-            }),
-            (2, &PersonData {
-                name: String::from("Inge"),
-                location: Some(String::from("Spain")),
-                spouse_id: None
-            })
+            (1, &PersonData::new("Hans", Some("Germany"), Some(123))),
+            (2, &PersonData::new("Inge", Some("Spain"), None))
         ];
         check_results(&mut conn, &ref_persons);
         check_single_result(&mut conn, ref_persons[0]);
@@ -163,11 +164,7 @@ mod tests {
 
     #[test]
     fn test_update() {
-        let person = PersonData {
-            name: String::from("Hans"),
-            location: Some(String::from("Germany")),
-            spouse_id: Some(123)
-        };
+        let person = PersonData::new("Hans", Some("Germany"), Some(123));
 
         let person_update = PersonPatch {
             name: None,
@@ -211,11 +208,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let person = PersonData {
-            name: String::from("Hans"),
-            location: Some(String::from("Germany")),
-            spouse_id: Some(123)
-        };
+        let person = PersonData::new("Hans", Some("Germany"), Some(123));
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -236,6 +229,40 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
         assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    fn test_read_with_location_none() {
+        let person = PersonData::new("Hans", Some("Germany"), Some(123));
+
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        assert!(insert_person_aggregate(&tx, &person).is_ok());
+        assert!(tx.commit().is_ok());
+
+        let tx = conn.transaction().unwrap();
+        let result = read_persons_with_location(&tx, "Spain");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_read_with_location_some() {
+        let person1 = PersonData::new("Hans", Some("Spain"), None);
+        let person2 = PersonData::new("Inge", Some("Italy"), None);
+        let person3 = PersonData::new("Fred", Some("Spain"), None);
+
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        assert!(insert_person_aggregate(&tx, &person1).is_ok());
+        assert!(insert_person_aggregate(&tx, &person2).is_ok());
+        assert!(insert_person_aggregate(&tx, &person3).is_ok());
+        assert!(tx.commit().is_ok());
+
+        let tx = conn.transaction().unwrap();
+        let result = read_persons_with_location(&tx, "Spain");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 2);
     }
 
     fn create_connection_and_table() -> Connection {
