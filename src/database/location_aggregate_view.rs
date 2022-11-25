@@ -1,6 +1,6 @@
 use const_format::formatcp;
 use log::debug;
-use rusqlite::{Result, Row, Transaction};
+use rusqlite::{OptionalExtension, Result, Row, Transaction};
 use crate::domain::location_map::LocationMap;
 use crate::database::person_aggregate_table::PERSON_AGGREGATE_TABLE;
 use crate::domain::person_data::PersonData;
@@ -8,6 +8,11 @@ use crate::domain::person_map::PersonMap;
 
 const SELECT_LOCATIONS : &'static str = formatcp!("
     SELECT personId, name, location, spouseId FROM {} WHERE location IS NOT NULL ORDER BY location",
+    PERSON_AGGREGATE_TABLE
+);
+
+const SELECT_LOCATION_OF_PERSON: &'static str = formatcp!("
+    SELECT location FROM {} WHERE personId = ?",
     PERSON_AGGREGATE_TABLE
 );
 
@@ -35,6 +40,14 @@ pub fn read_location_aggregates(tx: &Transaction) -> Result<LocationMap> {
     Ok(location_map)
 }
 
+pub fn read_location_of_person(tx: &Transaction, person_id: u32) -> Result<Option<String>> {
+    debug!("Execute {} with {}", SELECT_LOCATION_OF_PERSON, person_id);
+    let mut stmt = tx.prepare(SELECT_LOCATION_OF_PERSON)?;
+    stmt.query_row([person_id], |row | {
+        row.get(0)
+    }).optional()
+}
+
 fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
     let person_id : u32 = row.get(0)?;
     let location : String = row.get(2)?; // Will exist as ensured by WHERE condition
@@ -48,7 +61,7 @@ fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::location_aggregate_view::read_location_aggregates;
+    use crate::database::location_aggregate_view::{read_location_aggregates, read_location_of_person};
     use crate::database::person_aggregate_table::{create_person_aggregate_table, insert_person_aggregate};
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
@@ -72,11 +85,7 @@ mod tests {
 
     #[test]
     fn test_read_aggregate_for_no_location() {
-        let person = PersonData {
-            name: String::from("Hans"),
-            location: None, // No location
-            spouse_id: None
-        };
+        let person = PersonData::new("Hans", None, None);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -89,11 +98,7 @@ mod tests {
 
     #[test]
     fn test_read_aggregate_for_one() {
-        let person = PersonData {
-            name: String::from("Hans"),
-            location: Some(String::from("Somewhere")),
-            spouse_id: None
-        };
+        let person = PersonData::new("Hans", Some("Somewhere"), None);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -111,16 +116,8 @@ mod tests {
 
     #[test]
     fn test_read_aggregate_for_one_batch() {
-        let person1 = PersonData {
-            name: String::from("Hans"),
-            location: Some(String::from("Somewhere")),
-            spouse_id: None
-        };
-        let person2 = PersonData {
-            name: String::from("Inge"),
-            location: Some(String::from("Somewhere")), // Same location as Hans
-            spouse_id: None
-        };
+        let person1 = PersonData::new("Hans", Some("Somewhere"), None);
+        let person2 = PersonData::new("Inge", Some("Somewhere"), None);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -141,21 +138,9 @@ mod tests {
 
     #[test]
     fn test_read_aggregate_for_two_batches() {
-        let person1 = PersonData {
-            name: String::from("Hans"),
-            location: Some(String::from("Somewhere")),
-            spouse_id: None
-        };
-        let person2 = PersonData {
-            name: String::from("Inge"),
-            location: Some(String::from("Anywhere")),
-            spouse_id: None
-        };
-        let person3 = PersonData {
-            name: String::from("Fred"),
-            location: Some(String::from("Somewhere")), // Same location as Hans
-            spouse_id: None
-        };
+        let person1 = PersonData::new("Hans", Some("Somewhere"), None);
+        let person2 = PersonData::new("Inge", Some("Anywhere"), None);
+        let person3 = PersonData::new("Fred", Some("Somewhere"), None);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -177,6 +162,25 @@ mod tests {
         assert_eq!(result, location_map);
     }
 
+    #[test]
+    fn test_read_location_of_none() {
+        let mut conn = create_connection_and_table();
+        assert_eq!(read_location(&mut conn, 1), None);
+    }
+
+    #[test]
+    fn test_read_location_of_some() {
+        let person = PersonData::new("Inge", Some("Anywhere"), None);
+
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        assert!(insert_person_aggregate(&tx, &person).is_ok());
+        assert!(tx.commit().is_ok());
+
+        let result = read_location(&mut conn, 1);
+        assert_eq!(result, Some("Anywhere".to_string()));
+    }
+
     fn create_connection() -> Connection {
         let conn = Connection::open(":memory:");
         assert!(conn.is_ok());
@@ -194,6 +198,16 @@ mod tests {
         assert!(tx.is_ok());
         let tx = tx.unwrap();
         let result = read_location_aggregates(&tx);
+        assert!(tx.commit().is_ok());
+        assert!(result.is_ok());
+        result.unwrap()
+    }
+
+    fn read_location(conn: &mut Connection, person_id: u32) -> Option<String> {
+        let tx = conn.transaction();
+        assert!(tx.is_ok());
+        let tx = tx.unwrap();
+        let result = read_location_of_person(&tx, person_id);
         assert!(tx.commit().is_ok());
         assert!(result.is_ok());
         result.unwrap()
