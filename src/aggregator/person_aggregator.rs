@@ -4,7 +4,7 @@ use log::{info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_aggregate_view::read_location_aggregates;
-use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, update_person_aggregate};
+use crate::database::person_table::PersonTable;
 use crate::database::revision_table::{RevisionTable, RevisionType};
 use crate::domain::location_event::LocationEvent;
 use crate::domain::location_map::LocationMap;
@@ -20,7 +20,7 @@ pub struct PersonAggregator {
 impl PersonAggregator {
     pub fn new(db_path: &str) -> Result<PersonAggregator, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
-        create_person_aggregate_table(&conn)?;
+        PersonTable::create_table(&conn)?;
         PersonEventTable::create_table(&conn)?;
         LocationEventTable::create_table(&conn)?;
         RevisionTable::create_table(&conn)?;
@@ -30,12 +30,12 @@ impl PersonAggregator {
     // TODO: Rename to insert?
     pub fn create(&mut self, person: &PersonData) -> Result<(u32, PersonData), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let person_id = insert_person_aggregate(&tx, &person)?;
-        let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
+        let person_id = PersonTable::insert(&tx, &person)?;
+        let aggregate = PersonTable::select_by_id(&tx, person_id)?.unwrap(); // Must exist
         let person_event = PersonEvent::for_insert(person_id, &person);
         Self::write_person_event_and_revision(&tx, &person_event)?;
         if person.location.is_some() {
-            let location = person.location.unwrap().as_str();
+            let location = person.location.as_ref().unwrap().as_str();
             let location_event = LocationEvent::for_upsert(location, person_event);
             Self::write_location_event_and_revision(&tx, &location_event)?;
         }
@@ -46,13 +46,13 @@ impl PersonAggregator {
 
     pub fn update(&mut self, person_id: u32, person: &PersonPatch) -> Result<Option<PersonData>, rusqlite::Error> {
         let tx = self.conn.transaction()?;
-        if update_person_aggregate(&tx, person_id, &person)? {
-            let aggregate = read_person_aggregate(&tx, person_id)?.unwrap(); // Must exist
+        if PersonTable::update(&tx, person_id, &person)? {
+            let aggregate = PersonTable::select_by_id(&tx, person_id)?.unwrap(); // Must exist
             let person_event = PersonEvent::for_update(person_id, person);
             // let location_event = LocationEvent::of("foo", Some(person_event));
             Self::write_person_event_and_revision(&tx, &person_event)?;
             if person.location.is_value() {
-                let location = person.location.unwrap().as_str();
+                let location = person.location.as_ref().unwrap().as_str();
                 let location_event = LocationEvent::for_upsert(location, person_event);
                 Self::write_location_event_and_revision(&tx, &location_event)?;
             } else if person.location.is_null() {
@@ -70,10 +70,10 @@ impl PersonAggregator {
 
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        if delete_person_aggregate(&tx, person_id)? {
+        if PersonTable::delete(&tx, person_id)? {
             let person_event = PersonEvent::for_delete(person_id);
             Self::write_person_event_and_revision(&tx, &person_event)?;
-            // TODO: Update the location aggregate
+            // TODO: Update the location aggregate -- need to select the location first, arrg
             tx.commit()?;
             info!("Deleted person aggregate {}", person_id);
             Ok(true)
@@ -87,7 +87,7 @@ impl PersonAggregator {
     pub fn get_persons(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
-        let persons = read_person_aggregates(&tx)?;
+        let persons = PersonTable::select_all(&tx)?;
         tx.commit()?;
         Ok((revision, persons))
     }

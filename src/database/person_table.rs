@@ -1,12 +1,11 @@
 use const_format::formatcp;
 use log::{debug, error};
-use rusqlite::{Connection, Error, OptionalExtension, params, Params, params_from_iter, Result, Row, ToSql, Transaction};
+use rusqlite::{Connection, Error, OptionalExtension, params, params_from_iter, Result, Row, ToSql, Transaction};
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 
-// TODO: Just name table and file "person"?
-pub const PERSON_AGGREGATE_TABLE: &'static str = "person_aggregate";
+pub const PERSON_TABLE: &'static str = "person";
 
 const CREATE_PERSON_TABLE : &'static str = formatcp!("
     CREATE TABLE IF NOT EXISTS {} (
@@ -15,125 +14,129 @@ const CREATE_PERSON_TABLE : &'static str = formatcp!("
         location TEXT,
         spouseId INTEGER
     )",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 const INSERT_PERSON : &'static str = formatcp!("
     INSERT INTO {} (name, location, spouseId) VALUES (?, ?, ?)
     ON CONFLICT DO NOTHING",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 const DELETE_PERSON : &'static str = formatcp!("
     DELETE FROM {} WHERE personId = ?",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 const SELECT_PERSONS : &'static str = formatcp!("
     SELECT personId, name, location, spouseId FROM {}",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 const SELECT_PERSONS_WITH_LOCATION: &'static str = formatcp!("
     SELECT personId, name, location, spouseId FROM {} WHERE location = ?",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 const SELECT_PERSON : &'static str = formatcp!("
     SELECT personId, name, location, spouseId FROM {} WHERE personId = ?",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
-pub fn create_person_aggregate_table(conn: &Connection) -> Result<()> {
-    debug!("Execute {}", CREATE_PERSON_TABLE);
-    conn.execute(CREATE_PERSON_TABLE, [])?;
-    Ok(())
-}
+// This is just a namespace to keep method names short
+pub struct PersonTable;
 
-pub fn insert_person_aggregate(tx: &Transaction, person: &PersonData) -> Result<u32> {
-    debug!("Execute {}\nwith: {:?}", INSERT_PERSON, person);
-    let values = params![person.name, person.location, person.spouse_id];
-    tx.execute(INSERT_PERSON, values)?;
-    Ok(tx.last_insert_rowid() as u32)
-}
-
-pub fn update_person_aggregate(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<bool> {
-    let mut columns = Vec::new();
-    let mut values: Vec<&dyn ToSql> = Vec::new();
-    if !person.name.is_none() {
-        columns.push("name=?");
-        values.push(&person.name);
+impl PersonTable {
+    pub fn create_table(conn: &Connection) -> Result<()> {
+        debug!("Execute {}", CREATE_PERSON_TABLE);
+        conn.execute(CREATE_PERSON_TABLE, [])?;
+        Ok(())
     }
-    if !person.location.is_absent() {
-        columns.push("location=?");
-        values.push(&person.location);
+
+    pub fn insert(tx: &Transaction, person: &PersonData) -> Result<u32> {
+        debug!("Execute {}\nwith: {:?}", INSERT_PERSON, person);
+        let values = params![person.name, person.location, person.spouse_id];
+        tx.execute(INSERT_PERSON, values)?;
+        Ok(tx.last_insert_rowid() as u32)
     }
-    if !person.spouse_id.is_absent() {
-        columns.push("spouseId=?");
-        values.push(&person.spouse_id);
+
+    pub fn update(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<bool> {
+        let mut columns = Vec::new();
+        let mut values: Vec<&dyn ToSql> = Vec::new();
+        if !person.name.is_none() {
+            columns.push("name=?");
+            values.push(&person.name);
+        }
+        if !person.location.is_absent() {
+            columns.push("location=?");
+            values.push(&person.location);
+        }
+        if !person.spouse_id.is_absent() {
+            columns.push("spouseId=?");
+            values.push(&person.spouse_id);
+        }
+        if columns.is_empty() {
+            error!("Do not run update query because all non-id values are missing");
+            return Err(Error::InvalidParameterCount(0, 5));
+        }
+        let query = format!("UPDATE {} SET {} WHERE personId=?", PERSON_TABLE, columns.join(",").as_str());
+        values.push(&person_id);
+        debug!("Execute\n{}\nwith: {:?}", query, person);
+        let row_count = tx.execute(query.as_str(), values.as_slice())?;
+        Ok(row_count == 1)
     }
-    if columns.is_empty() {
-        error!("Do not run update query because all non-id values are missing");
-        return Err(Error::InvalidParameterCount(0, 5));
+
+    pub fn delete(tx: &Transaction, person_id: u32) -> Result<bool> {
+        debug!("Execute {} with: {}", DELETE_PERSON, person_id);
+        let row_count = tx.execute(DELETE_PERSON, params![person_id])?;
+        Ok(row_count == 1)
     }
-    let query = format!("UPDATE {} SET {} WHERE personId=?", PERSON_AGGREGATE_TABLE, columns.join(",").as_str());
-    values.push(&person_id);
-    debug!("Execute\n{}\nwith: {:?}", query, person);
-    let row_count = tx.execute(query.as_str(), values.as_slice())?;
-    Ok(row_count == 1)
-}
 
-pub fn delete_person_aggregate(tx: &Transaction, person_id: u32) -> Result<bool> {
-    debug!("Execute {} with: {}", DELETE_PERSON, person_id);
-    let row_count = tx.execute(DELETE_PERSON, params![person_id])?;
-    Ok(row_count == 1)
-}
-
-// TODO: Just call it "read_persons"? (other functions accordingly)
-pub fn read_person_aggregates(tx: &Transaction) -> Result<PersonMap> {
-    debug!("Execute {}", SELECT_PERSONS);
-    read_persons(&tx, SELECT_PERSONS, &[])
-}
-
-pub fn read_persons_with_location(tx: &Transaction, location: &str) -> Result<PersonMap> {
-    debug!("Execute {} with {}", SELECT_PERSONS_WITH_LOCATION, location);
-    read_persons(&tx, SELECT_PERSONS_WITH_LOCATION, &[location])
-}
-
-pub fn read_person_aggregate(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
-    debug!("Execute {} with: {}", SELECT_PERSON, person_id);
-    let mut stmt = tx.prepare(SELECT_PERSON)?;
-    stmt.query_row([person_id], |row | {
-        Ok(row_to_person_data(row)?.1)
-    }).optional()
-}
-
-pub fn read_persons(tx: &Transaction, query: &str, params: &[&str]) -> Result<PersonMap> {
-    debug!("Execute {}", query);
-    let mut stmt = tx.prepare(query)?;
-    let rows = stmt.query_map(params_from_iter(params), |row| {
-        row_to_person_data(row)
-    })?;
-    let mut person_map = PersonMap::new();
-    for row in rows {
-        let (person_id, person_data) = row?;
-        person_map.put(person_id, person_data);
+    // TODO: Just call it "read_persons"? (other functions accordingly)
+    pub fn select_all(tx: &Transaction) -> Result<PersonMap> {
+        debug!("Execute {}", SELECT_PERSONS);
+        Self::select_internal(&tx, SELECT_PERSONS, &[])
     }
-    Ok(person_map)
-}
 
-fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
-    Ok((row.get(0)?, PersonData {
-        name: row.get(1)?,
-        location: row.get(2)?,
-        spouse_id: row.get(3)?
-    }))
+    pub fn select_by_location(tx: &Transaction, location: &str) -> Result<PersonMap> {
+        debug!("Execute {} with {}", SELECT_PERSONS_WITH_LOCATION, location);
+        Self::select_internal(&tx, SELECT_PERSONS_WITH_LOCATION, &[location])
+    }
+
+    pub fn select_by_id(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
+        debug!("Execute {} with: {}", SELECT_PERSON, person_id);
+        let mut stmt = tx.prepare(SELECT_PERSON)?;
+        stmt.query_row([person_id], |row | {
+            Ok(Self::row_to_person_data(row)?.1)
+        }).optional()
+    }
+
+    fn select_internal(tx: &Transaction, query: &str, params: &[&str]) -> Result<PersonMap> {
+        let mut stmt = tx.prepare(query)?;
+        let rows = stmt.query_map(params_from_iter(params), |row| {
+            Self::row_to_person_data(row)
+        })?;
+        let mut person_map = PersonMap::new();
+        for row in rows {
+            let (person_id, person_data) = row?;
+            person_map.put(person_id, person_data);
+        }
+        Ok(person_map)
+    }
+
+    fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
+        Ok((row.get(0)?, PersonData {
+            name: row.get(1)?,
+            location: row.get(2)?,
+            spouse_id: row.get(3)?
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::person_aggregate_table::{create_person_aggregate_table, delete_person_aggregate, insert_person_aggregate, read_person_aggregate, read_person_aggregates, read_persons_with_location, update_person_aggregate};
+    use crate::database::person_table::PersonTable;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
@@ -145,10 +148,10 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let person_id1 = insert_person_aggregate(&tx, &person1);
+        let person_id1 = PersonTable::insert(&tx, &person1);
         assert!(person_id1.is_ok());
         assert_eq!(person_id1.unwrap(), 1);
-        let person_id2 = insert_person_aggregate(&tx, &person2);
+        let person_id2 = PersonTable::insert(&tx, &person2);
         assert!(person_id2.is_ok());
         assert_eq!(person_id2.unwrap(), 2);
         assert!(tx.commit().is_ok());
@@ -174,25 +177,20 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person).is_ok());
-        let result = update_person_aggregate(&tx, 1, &person_update);
+        assert!(PersonTable::insert(&tx, &person).is_ok());
+        let result = PersonTable::update(&tx, 1, &person_update);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);
         assert!(tx.commit().is_ok());
 
-        let ref_persons = [
-            (1, &PersonData {
-                name: String::from("Hans"),
-                location: None,
-                spouse_id: Some(100)
-            })
-        ];
+        let ref_persons = [(1, &PersonData::new("Hans", None, Some(100)))];
         check_results(&mut conn, &ref_persons);
         check_single_result(&mut conn, ref_persons[0]);
     }
     #[test]
 
     fn test_update_missing() {
+        // TODO: Ctor for PersonPatch
         let person_update = PersonPatch {
             name: None,
             location: Patch::Null,
@@ -201,7 +199,7 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let result = update_person_aggregate(&tx, 1, &person_update);
+        let result = PersonTable::update(&tx, 1, &person_update);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
     }
@@ -212,8 +210,8 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person).is_ok());
-        let result = delete_person_aggregate(&tx, 1);
+        assert!(PersonTable::insert(&tx, &person).is_ok());
+        let result = PersonTable::delete(&tx, 1);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), true);
         assert!(tx.commit().is_ok());
@@ -225,7 +223,7 @@ mod tests {
     fn test_delete_missing() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let result = delete_person_aggregate(&tx, 1);
+        let result = PersonTable::delete(&tx, 1);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
         assert!(tx.commit().is_ok());
@@ -237,11 +235,11 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person).is_ok());
+        assert!(PersonTable::insert(&tx, &person).is_ok());
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let result = read_persons_with_location(&tx, "Spain");
+        let result = PersonTable::select_by_location(&tx, "Spain");
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
     }
@@ -254,13 +252,13 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person1).is_ok());
-        assert!(insert_person_aggregate(&tx, &person2).is_ok());
-        assert!(insert_person_aggregate(&tx, &person3).is_ok());
+        assert!(PersonTable::insert(&tx, &person1).is_ok());
+        assert!(PersonTable::insert(&tx, &person2).is_ok());
+        assert!(PersonTable::insert(&tx, &person3).is_ok());
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let result = read_persons_with_location(&tx, "Spain");
+        let result = PersonTable::select_by_location(&tx, "Spain");
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 2);
     }
@@ -269,14 +267,14 @@ mod tests {
         let conn = Connection::open(":memory:");
         assert!(conn.is_ok());
         let conn = conn.unwrap();
-        assert!(create_person_aggregate_table(&conn).is_ok());
+        assert!(PersonTable::create_table(&conn).is_ok());
         conn
     }
 
     fn check_results(conn: &mut Connection, ref_persons: &[(u32, &PersonData)]) {
         let tx = conn.transaction().unwrap();
 
-        let persons = read_person_aggregates(&tx);
+        let persons = PersonTable::select_all(&tx);
         assert!(persons.is_ok());
         assert!(tx.commit().is_ok());
 
@@ -293,7 +291,7 @@ mod tests {
     fn check_single_result(conn: &mut Connection, ref_person: (u32, &PersonData)) {
         let tx = conn.transaction().unwrap();
 
-        let person = read_person_aggregate(&tx, ref_person.0);
+        let person = PersonTable::select_by_id(&tx, ref_person.0);
         assert!(person.is_ok());
         assert!(tx.commit().is_ok());
 

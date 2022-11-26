@@ -2,18 +2,18 @@ use const_format::formatcp;
 use log::debug;
 use rusqlite::{OptionalExtension, Result, Row, Transaction};
 use crate::domain::location_map::LocationMap;
-use crate::database::person_aggregate_table::PERSON_AGGREGATE_TABLE;
+use crate::database::person_table::PERSON_TABLE;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 
 const SELECT_LOCATIONS : &'static str = formatcp!("
     SELECT personId, name, location, spouseId FROM {} WHERE location IS NOT NULL ORDER BY location",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 const SELECT_LOCATION_OF_PERSON: &'static str = formatcp!("
     SELECT location FROM {} WHERE personId = ?",
-    PERSON_AGGREGATE_TABLE
+    PERSON_TABLE
 );
 
 pub fn read_location_aggregates(tx: &Transaction) -> Result<LocationMap> {
@@ -62,7 +62,7 @@ fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
 mod tests {
     use rusqlite::Connection;
     use crate::database::location_aggregate_view::{read_location_aggregates, read_location_of_person};
-    use crate::database::person_aggregate_table::{create_person_aggregate_table, insert_person_aggregate};
+    use crate::database::person_table::PersonTable;
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
@@ -89,7 +89,7 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person).is_ok());
+        assert!(PersonTable::insert(&tx, &person).is_ok());
         assert!(tx.commit().is_ok());
 
         let result = read_locations(&mut conn);
@@ -102,7 +102,7 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person).is_ok());
+        assert!(PersonTable::insert(&tx, &person).is_ok());
         assert!(tx.commit().is_ok());
 
         let mut person_map = PersonMap::new();
@@ -121,8 +121,8 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person1).is_ok());
-        assert!(insert_person_aggregate(&tx, &person2).is_ok());
+        assert!(PersonTable::insert(&tx, &person1).is_ok());
+        assert!(PersonTable::insert(&tx, &person2).is_ok());
         assert!(tx.commit().is_ok());
 
         let mut person_map = PersonMap::new();
@@ -144,9 +144,9 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person1).is_ok());
-        assert!(insert_person_aggregate(&tx, &person2).is_ok());
-        assert!(insert_person_aggregate(&tx, &person3).is_ok());
+        assert!(PersonTable::insert(&tx, &person1).is_ok());
+        assert!(PersonTable::insert(&tx, &person2).is_ok());
+        assert!(PersonTable::insert(&tx, &person3).is_ok());
         assert!(tx.commit().is_ok());
 
         let mut person_map1 = PersonMap::new();
@@ -174,7 +174,7 @@ mod tests {
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(insert_person_aggregate(&tx, &person).is_ok());
+        assert!(PersonTable::insert(&tx, &person).is_ok());
         assert!(tx.commit().is_ok());
 
         let result = read_location(&mut conn, 1);
@@ -189,7 +189,7 @@ mod tests {
 
     fn create_connection_and_table() -> Connection {
         let conn = create_connection();
-        assert!(create_person_aggregate_table(&conn).is_ok());
+        assert!(PersonTable::create_table(&conn).is_ok());
         conn
     }
 
