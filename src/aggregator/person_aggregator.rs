@@ -3,7 +3,7 @@ use std::error::Error;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
-use crate::database::location_aggregate_view::read_location_aggregates;
+use crate::database::location_view::LocationView;
 use crate::database::person_table::PersonTable;
 use crate::database::revision_table::{RevisionTable, RevisionType};
 use crate::domain::location_event::LocationEvent;
@@ -104,7 +104,7 @@ impl PersonAggregator {
     pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::LOCATION)?;
-        let locations = read_location_aggregates(&tx)?;
+        let locations = LocationView::select_all(&tx)?;
         tx.commit()?;
         Ok((revision, locations))
     }

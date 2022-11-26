@@ -16,52 +16,58 @@ const SELECT_LOCATION_OF_PERSON: &'static str = formatcp!("
     PERSON_TABLE
 );
 
-pub fn read_location_aggregates(tx: &Transaction) -> Result<LocationMap> {
-    debug!("Execute {}", SELECT_LOCATIONS);
-    let mut stmt = tx.prepare(SELECT_LOCATIONS)?;
-    let rows = stmt.query_map([], |row| {
-        row_to_person_data(row) // TODO: Directly construct result map here? Or use cursor/iterator?
-    })?;
-    let mut location_map = LocationMap::new();
-    let mut last_location : Option<String> = None;
-    let mut person_map = PersonMap::new();
-    for row in rows {
-        let (location, person_id, person_data) = row?;
-        if last_location.is_some() && last_location.as_ref().unwrap() != &location {
-            location_map.put(last_location.unwrap().as_str(), person_map);
-            person_map = PersonMap::new();
+// This is just a namespace to keep method names short
+pub struct LocationView;
+
+impl LocationView {
+
+    pub fn select_all(tx: &Transaction) -> Result<LocationMap> {
+        debug!("Execute {}", SELECT_LOCATIONS);
+        let mut stmt = tx.prepare(SELECT_LOCATIONS)?;
+        let rows = stmt.query_map([], |row| {
+            Self::row_to_person_data(row) // TODO: Directly construct result map here? Or use cursor/iterator?
+        })?;
+        let mut location_map = LocationMap::new();
+        let mut last_location : Option<String> = None;
+        let mut person_map = PersonMap::new();
+        for row in rows {
+            let (location, person_id, person_data) = row?;
+            if last_location.is_some() && last_location.as_ref().unwrap() != &location {
+                location_map.put(last_location.unwrap().as_str(), person_map);
+                person_map = PersonMap::new();
+            }
+            person_map.put(person_id, person_data);
+            last_location = Some(location);
         }
-        person_map.put(person_id, person_data);
-        last_location = Some(location);
+        if person_map.len() > 0 {
+            location_map.put(last_location.unwrap().as_str(), person_map);
+        }
+        Ok(location_map)
     }
-    if person_map.len() > 0 {
-        location_map.put(last_location.unwrap().as_str(), person_map);
+
+    pub fn select_by_person(tx: &Transaction, person_id: u32) -> Result<Option<String>> {
+        debug!("Execute {} with {}", SELECT_LOCATION_OF_PERSON, person_id);
+        let mut stmt = tx.prepare(SELECT_LOCATION_OF_PERSON)?;
+        stmt.query_row([person_id], |row | {
+            row.get(0)
+        }).optional()
     }
-    Ok(location_map)
-}
 
-pub fn read_location_of_person(tx: &Transaction, person_id: u32) -> Result<Option<String>> {
-    debug!("Execute {} with {}", SELECT_LOCATION_OF_PERSON, person_id);
-    let mut stmt = tx.prepare(SELECT_LOCATION_OF_PERSON)?;
-    stmt.query_row([person_id], |row | {
-        row.get(0)
-    }).optional()
-}
-
-fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
-    let person_id : u32 = row.get(0)?;
-    let location : String = row.get(2)?; // Will exist as ensured by WHERE condition
-    Ok((location.clone(), person_id, PersonData {
-        name: row.get(1)?,
-        location: Some(location),
-        spouse_id: row.get(3)?
-    }))
+    fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
+        let person_id : u32 = row.get(0)?;
+        let location : String = row.get(2)?; // Will exist as ensured by WHERE condition
+        Ok((location.clone(), person_id, PersonData {
+            name: row.get(1)?,
+            location: Some(location),
+            spouse_id: row.get(3)?
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::location_aggregate_view::{read_location_aggregates, read_location_of_person};
+    use crate::database::location_view::LocationView;
     use crate::database::person_table::PersonTable;
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
@@ -72,7 +78,7 @@ mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction();
         assert!(tx.is_ok());
-        let result = read_location_aggregates(&tx.unwrap());
+        let result = LocationView::select_all(&tx.unwrap());
         assert!(result.is_err());
     }
 
@@ -197,7 +203,7 @@ mod tests {
         let tx = conn.transaction();
         assert!(tx.is_ok());
         let tx = tx.unwrap();
-        let result = read_location_aggregates(&tx);
+        let result = LocationView::select_all(&tx);
         assert!(tx.commit().is_ok());
         assert!(result.is_ok());
         result.unwrap()
@@ -207,7 +213,7 @@ mod tests {
         let tx = conn.transaction();
         assert!(tx.is_ok());
         let tx = tx.unwrap();
-        let result = read_location_of_person(&tx, person_id);
+        let result = LocationView::select_by_person(&tx, person_id);
         assert!(tx.commit().is_ok());
         assert!(result.is_ok());
         result.unwrap()
