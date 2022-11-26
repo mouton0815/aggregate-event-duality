@@ -27,8 +27,7 @@ impl PersonAggregator {
         Ok(PersonAggregator { conn })
     }
 
-    // TODO: Rename to insert?
-    pub fn create(&mut self, person: &PersonData) -> Result<(u32, PersonData), Box<dyn Error>> {
+    pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         let aggregate = PersonTable::select_by_id(&tx, person_id)?.unwrap(); // Must exist
@@ -150,7 +149,7 @@ mod tests {
         let mut aggregator = create_aggregator();
 
         let person = create_person_data();
-        let person_res = aggregator.create(&person);
+        let person_res = aggregator.insert(&person);
         assert!(person_res.is_ok());
         let (person_id, person_data) = person_res.unwrap();
 
@@ -167,7 +166,7 @@ mod tests {
 
         let person = create_person_data();
         let person_update = create_person_patch();
-        let person_res = aggregator.create(&person);
+        let person_res = aggregator.insert(&person);
         assert!(person_res.is_ok());
         let person_res = aggregator.update(1, &person_update);
         assert!(person_res.is_ok());
@@ -198,7 +197,7 @@ mod tests {
         let mut aggregator = create_aggregator();
 
         let person = create_person_data();
-        let person_res = aggregator.create(&person);
+        let person_res = aggregator.insert(&person);
         assert!(person_res.is_ok());
         let person_res = aggregator.delete(1);
         assert!(person_res.is_ok());
@@ -224,7 +223,7 @@ mod tests {
         let mut aggregator = create_aggregator();
 
         let person = create_person_data();
-        assert!(aggregator.create(&person).is_ok());
+        assert!(aggregator.insert(&person).is_ok());
         let persons_res = aggregator.get_persons();
         assert!(persons_res.is_ok());
 
@@ -240,7 +239,7 @@ mod tests {
 
         let person = create_person_data();
         let person_update = create_person_patch();
-        assert!(aggregator.create(&person).is_ok());
+        assert!(aggregator.insert(&person).is_ok());
         assert!(aggregator.update(1, &person_update).is_ok());
 
         let event_ref1 = r#"{"1":{"name":"Hans"}}"#;

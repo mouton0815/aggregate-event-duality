@@ -22,7 +22,7 @@ struct ErrorResult {
 
 pub async fn post_person(aggregator: MutexedPersonAggregator, path: &str, person: PersonData) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
-    return match aggregator.create(&person) {
+    return match aggregator.insert(&person) {
         Ok(result) => {
             let (person_id, person_data) = result;
             let location = format!("/{}/{}", path, person_id);
