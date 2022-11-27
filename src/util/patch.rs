@@ -30,12 +30,19 @@ impl<T> Patch<T> {
         }
     }
 
-    // TODO: Unit tests
     pub fn unwrap(self) -> T {
         match self {
             Patch::Value(val) => val,
             Patch::Absent => panic!("called `Patch::unwrap()` on an `Absent` value"),
             Patch::Null => panic!("called `Patch::unwrap()` on a `Null` value")
+        }
+    }
+
+    pub fn map<U, F>(self, f: F) -> Patch<U> where F: FnOnce(T) -> U {
+        match self {
+            Patch::Value(x) => Patch::Value(f(x)),
+            Patch::Absent => Patch::Absent,
+            Patch::Null => Patch::Null
         }
     }
 }
@@ -115,6 +122,13 @@ mod tests {
     pub fn test_as_ref() {
         let t = Patch::Value(String::from("123"));
         let r : Patch<&String> = t.as_ref();
+        assert_eq!(r.unwrap(), "123");
+    }
+
+    #[test]
+    pub fn test_map() {
+        let t : Patch<&str> = Patch::Value("123");
+        let r : Patch<String> = t.map(|s| String::from(s));
         assert_eq!(r.unwrap(), "123");
     }
 
