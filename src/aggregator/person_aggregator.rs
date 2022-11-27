@@ -126,6 +126,13 @@ impl PersonAggregator {
         Ok((revision, locations))
     }
 
+    pub fn get_location_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
+        let tx = self.conn.transaction()?;
+        let events = LocationEventTable::read(&tx, from_revision)?;
+        tx.commit()?;
+        Ok(events)
+    }
+
     fn write_person_event_and_revision(tx: &Transaction, event: &PersonEvent) -> Result<u32, rusqlite::Error> {
         match serde_json::to_string(&event) {
             Ok(json) => {
@@ -155,6 +162,7 @@ impl PersonAggregator {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
     use crate::aggregator::person_aggregator::PersonAggregator;
     use crate::database::revision_table::{RevisionTable, RevisionType};
     use crate::domain::person_data::PersonData;
@@ -163,7 +171,7 @@ mod tests {
     use crate::util::patch::Patch;
 
     #[test]
-    pub fn test_create() {
+    pub fn test_create_no_location() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
@@ -175,25 +183,153 @@ mod tests {
         let person_ref = PersonData::new("Hans", None, None);
         assert_eq!(person_data, person_ref);
 
-        let person_events_ref = [r#"{"1":{"name":"Hans"}}"#];
-        check_person_events(&mut aggregator, &person_events_ref);
+        let events_ref = [r#"{"1":{"name":"Hans"}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [];
+        check_location_events(&mut aggregator, &events_ref);
     }
 
     #[test]
-    pub fn test_update() {
+    pub fn test_create_with_location() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let person_res = aggregator.insert(&person);
+        assert!(person_res.is_ok());
+        let (person_id, person_data) = person_res.unwrap();
+        assert_eq!(person_id, 1);
+
+        let person_ref = PersonData::new("Hans", Some("Here"), None);
+        assert_eq!(person_data, person_ref);
+
+        let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_update_set_location() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(123));
+        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Here"), Patch::Value(123));
         assert!(aggregator.insert(&person).is_ok());
         let person_res = aggregator.update(1, &patch);
         assert!(person_res.is_ok());
 
-        let person_ref = PersonData::new("Inge", Some("Nowhere"), Some(123));
+        let person_ref = PersonData::new("Inge", Some("Here"), Some(123));
         assert_eq!(person_res.unwrap(), Some(person_ref));
 
-        let person_events_ref = [r#"{"1":{"name":"Hans"}}"#, r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":123}}"#];
-        check_person_events(&mut aggregator, &person_events_ref);
+        let events_ref = [r#"{"1":{"name":"Hans"}}"#, r#"{"1":{"name":"Inge","location":"Here","spouseId":123}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [r#"{"Here":{"1":{"name":"Inge","location":"Here","spouseId":123}}}"#];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_update_no_location() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", None, None);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Absent, Patch::Value(123));
+        assert!(aggregator.insert(&person).is_ok());
+        let person_res = aggregator.update(1, &patch);
+        assert!(person_res.is_ok());
+
+        let person_ref = PersonData::new("Inge", None, Some(123));
+        assert_eq!(person_res.unwrap(), Some(person_ref));
+
+        let events_ref = [r#"{"1":{"name":"Hans"}}"#, r#"{"1":{"name":"Inge","spouseId":123}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_update_keep_location() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Absent, Patch::Absent);
+        assert!(aggregator.insert(&person).is_ok());
+        let person_res = aggregator.update(1, &patch);
+        assert!(person_res.is_ok());
+
+        let person_ref = PersonData::new("Inge", Some("Here"), None);
+        assert_eq!(person_res.unwrap(), Some(person_ref));
+
+        let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#, r#"{"1":{"name":"Inge"}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_update_same_location() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Here"), Patch::Absent);
+        assert!(aggregator.insert(&person).is_ok());
+        let person_res = aggregator.update(1, &patch);
+        assert!(person_res.is_ok());
+
+        let person_ref = PersonData::new("Inge", Some("Here"), None);
+        assert_eq!(person_res.unwrap(), Some(person_ref));
+
+        let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#, r#"{"1":{"name":"Inge","location":"Here"}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_update_delete_one_location() {
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("Here"), None);
+        let person2 = PersonData::new("Fred", Some("Here"), None);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Null, Patch::Absent);
+        assert!(aggregator.insert(&person1).is_ok());
+        assert!(aggregator.insert(&person2).is_ok());
+        let person_res = aggregator.update(1, &patch);
+        assert!(person_res.is_ok());
+
+        let person_ref = PersonData::new("Inge", None, None);
+        assert_eq!(person_res.unwrap(), Some(person_ref));
+
+        let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#, r#"{"2":{"name":"Fred","location":"Here"}}"#, r#"{"1":{"name":"Inge","location":null}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#, r#"{"Here":{"2":{"name":"Fred","location":"Here"}}}"#, r#"{"Here":{"1":{"name":"Inge","location":null}}}"#];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_update_delete_last_location() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Null, Patch::Absent);
+        assert!(aggregator.insert(&person).is_ok());
+        let person_res = aggregator.update(1, &patch);
+        assert!(person_res.is_ok());
+
+        let person_ref = PersonData::new("Inge", None, None);
+        assert_eq!(person_res.unwrap(), Some(person_ref));
+
+        let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#, r#"{"1":{"name":"Inge","location":null}}"#];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#, r#"{"Here":null}"#];
+        check_location_events(&mut aggregator, &events_ref);
     }
 
     #[test]
@@ -205,8 +341,9 @@ mod tests {
         assert!(person_res.is_ok());
         assert_eq!(person_res.unwrap(), None);
 
-        let person_events_ref : [&str;0] = [];
-        check_person_events(&mut aggregator, &person_events_ref);
+        let events_ref = [];
+        check_person_events(&mut aggregator, &events_ref);
+        check_location_events(&mut aggregator, &events_ref);
     }
 
     #[test]
@@ -219,8 +356,8 @@ mod tests {
         assert!(person_res.is_ok());
         assert!(person_res.unwrap()); // Should be true
 
-        let person_events_ref = [r#"{"1":{"name":"Hans"}}"#, r#"{"1":null}"#];
-        check_person_events(&mut aggregator, &person_events_ref);
+        let events_ref = [r#"{"1":{"name":"Hans"}}"#, r#"{"1":null}"#];
+        check_person_events(&mut aggregator, &events_ref);
     }
 
     #[test]
@@ -283,12 +420,26 @@ mod tests {
     }
 
     fn check_person_events(aggregator: &mut PersonAggregator, events_ref: &[&str]) {
+        check_revision(aggregator, RevisionType::PERSON, events_ref.len());
+        let events = aggregator.get_person_events(0);
+        check_events(events, events_ref);
+    }
+
+    fn check_location_events(aggregator: &mut PersonAggregator, events_ref: &[&str]) {
+        check_revision(aggregator, RevisionType::LOCATION, events_ref.len());
+        let events = aggregator.get_location_events(0);
+        check_events(events, events_ref);
+    }
+
+    fn check_revision(aggregator: &mut PersonAggregator, revision_type: RevisionType, revision_ref: usize) {
         let tx = aggregator.conn.transaction().unwrap();
-        let revision = RevisionTable::read(&tx, RevisionType::PERSON);
+        let revision = RevisionTable::read(&tx, revision_type);
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
-        assert_eq!(revision.unwrap(), events_ref.len() as u32);
-        let events = aggregator.get_person_events(0);
+        assert_eq!(revision.unwrap(), revision_ref as u32);
+    }
+
+    fn check_events(events: Result<Vec<String>, Box<dyn Error>>, events_ref: &[&str]) {
         assert!(events.is_ok());
         let events = events.unwrap();
         assert_eq!(events.len(), events_ref.len());
