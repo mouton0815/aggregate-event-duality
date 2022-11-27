@@ -1,6 +1,6 @@
 use const_format::formatcp;
 use log::debug;
-use rusqlite::{OptionalExtension, Result, Row, Transaction};
+use rusqlite::{Error, Result, Row, Transaction};
 use crate::domain::location_map::LocationMap;
 use crate::database::person_table::PERSON_TABLE;
 use crate::domain::person_data::PersonData;
@@ -48,9 +48,14 @@ impl LocationView {
     pub fn select_by_person(tx: &Transaction, person_id: u32) -> Result<Option<String>> {
         debug!("Execute {} with {}", SELECT_LOCATION_OF_PERSON, person_id);
         let mut stmt = tx.prepare(SELECT_LOCATION_OF_PERSON)?;
-        stmt.query_row([person_id], |row | {
-            row.get(0)
-        }).optional()
+        let result = stmt.query_row([person_id], |row | {
+            row.get::<usize, Option<String>>(0)
+        });
+        match result { // Cannot use OptionalExtension as this wraps the result into another Option
+            Ok(value) => Ok(value),
+            Err(Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
@@ -169,8 +174,20 @@ mod tests {
     }
 
     #[test]
-    fn test_read_location_of_none() {
+    fn test_read_location_of_empty() {
         let mut conn = create_connection_and_table();
+        assert_eq!(read_location(&mut conn, 1), None);
+    }
+
+    #[test]
+    fn test_read_location_of_none() {
+        let person = PersonData::new("Inge", None, None);
+
+        let mut conn = create_connection_and_table();
+        let tx = conn.transaction().unwrap();
+        assert!(PersonTable::insert(&tx, &person).is_ok());
+        assert!(tx.commit().is_ok());
+
         assert_eq!(read_location(&mut conn, 1), None);
     }
 
