@@ -17,26 +17,52 @@ pub struct PersonPatch {
     pub spouse_id: Patch<u32>
 }
 
+impl PersonPatch {
+    /// Convenience function that takes &str literals
+    pub fn new(name: Option<&str>, location: Patch<&str>, spouse_id: Patch<u32>) -> PersonPatch {
+        PersonPatch {
+            name: name.map(|n| String::from(n)),
+            location: location.map(|l| String::from(l)),
+            spouse_id
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
 
     #[test]
-    pub fn test_person_patch() {
-        let person_ref = PersonPatch {
-            name: Some(String::from("Hans")),
-            location: Patch::Absent,
-            spouse_id: Patch::Null,
-        };
+    pub fn test_person_patch1() {
+        let person = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Null);
         let json_ref = r#"{"name":"Hans","spouseId":null}"#;
+        serde_and_verify(&person, json_ref);
+    }
 
+    #[test]
+    pub fn test_person_patch2() {
+        let person = PersonPatch::new(None, Patch::Value("Here"), Patch::Value(123));
+        let json_ref = r#"{"location":"Here","spouseId":123}"#;
+        serde_and_verify(&person, json_ref);
+    }
+
+    #[test]
+    pub fn test_person_patch3() {
+        let person = PersonPatch::new(None, Patch::Null, Patch::Absent);
+        let json_ref = r#"{"location":null}"#;
+        serde_and_verify(&person, json_ref);
+    }
+
+    fn serde_and_verify(person_ref: &PersonPatch, json_ref: &str) {
+        // 1. Serialize person_ref and string-compare it to json_ref
         let json = serde_json::to_string(&person_ref);
         assert!(json.is_ok());
         assert_eq!(json.unwrap(), String::from(json_ref));
 
+        // 2. Deserialize the serialized json and compare it with person_ref
         let person: Result<PersonPatch, serde_json::Error> = serde_json::from_str(json_ref);
         assert!(person.is_ok());
-        assert_eq!(person.unwrap(), person_ref);
+        assert_eq!(person.unwrap(), *person_ref);
     }
 }
