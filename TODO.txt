@@ -6,3 +6,6 @@
 [X] Return Location header in POST result
 [X] Implement location aggregator and corresponding REST GET endpoints
 [X] Migrate person_aggregate_table to a namespace class
+[X] Fix location events on renaming
+[ ] Rename src/aggregator/person_aggregator.rs -> src/aggregator.rs
+[ ] Scheduler for event deletion
