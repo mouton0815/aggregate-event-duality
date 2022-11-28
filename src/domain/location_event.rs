@@ -32,11 +32,8 @@ mod tests {
 
     #[test]
     pub fn test_location_event_values() {
-        let person_event = PersonEvent::for_insert(3, &PersonData{
-            name: "Hans".to_string(),
-            location: Some("Here".to_string()),
-            spouse_id: None
-        });
+        let person_data = PersonData::new("Hans", Some("Here"), None);
+        let person_event = PersonEvent::for_insert(3, &person_data);
         let location_event = LocationEvent::for_upsert("Here", person_event);
         let json_ref = r#"{"Here":{"3":{"name":"Hans","location":"Here"}}}"#;
         serde_and_verify(&location_event, json_ref);
