@@ -1,6 +1,6 @@
 use const_format::formatcp;
 use log::{debug, error};
-use rusqlite::{Connection, Error, OptionalExtension, params, params_from_iter, Result, Row, ToSql, Transaction};
+use rusqlite::{Connection, Error, OptionalExtension, params, Result, Row, ToSql, Transaction};
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
@@ -33,8 +33,8 @@ const SELECT_PERSONS : &'static str = formatcp!("
     PERSON_TABLE
 );
 
-const SELECT_PERSONS_WITH_LOCATION: &'static str = formatcp!("
-    SELECT personId, name, location, spouseId FROM {} WHERE location = ?",
+const COUNT_PERSONS_WITH_LOCATION: &'static str = formatcp!("
+    SELECT COUNT(personId) FROM {} WHERE location = ?",
     PERSON_TABLE
 );
 
@@ -92,15 +92,18 @@ impl PersonTable {
         Ok(row_count == 1)
     }
 
-    // TODO: Just call it "read_persons"? (other functions accordingly)
     pub fn select_all(tx: &Transaction) -> Result<PersonMap> {
         debug!("Execute {}", SELECT_PERSONS);
-        Self::select_internal(&tx, SELECT_PERSONS, &[])
-    }
-
-    pub fn select_by_location(tx: &Transaction, location: &str) -> Result<PersonMap> {
-        debug!("Execute {} with {}", SELECT_PERSONS_WITH_LOCATION, location);
-        Self::select_internal(&tx, SELECT_PERSONS_WITH_LOCATION, &[location])
+        let mut stmt = tx.prepare(SELECT_PERSONS)?;
+        let rows = stmt.query_map([], |row| {
+            Self::row_to_person_data(row)
+        })?;
+        let mut person_map = PersonMap::new();
+        for row in rows {
+            let (person_id, person_data) = row?;
+            person_map.put(person_id, person_data);
+        }
+        Ok(person_map)
     }
 
     pub fn select_by_id(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
@@ -111,17 +114,12 @@ impl PersonTable {
         }).optional()
     }
 
-    fn select_internal(tx: &Transaction, query: &str, params: &[&str]) -> Result<PersonMap> {
-        let mut stmt = tx.prepare(query)?;
-        let rows = stmt.query_map(params_from_iter(params), |row| {
-            Self::row_to_person_data(row)
-        })?;
-        let mut person_map = PersonMap::new();
-        for row in rows {
-            let (person_id, person_data) = row?;
-            person_map.put(person_id, person_data);
-        }
-        Ok(person_map)
+    pub fn count_by_location(tx: &Transaction, location: &str) -> Result<usize> {
+        debug!("Execute {} with {}", COUNT_PERSONS_WITH_LOCATION, location);
+        let mut stmt = tx.prepare(COUNT_PERSONS_WITH_LOCATION)?;
+        stmt.query_row([location], |row | {
+            row.get(0)
+        })
     }
 
     fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
@@ -239,9 +237,9 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let result = PersonTable::select_by_location(&tx, "Spain");
+        let result = PersonTable::count_by_location(&tx, "Spain");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 0);
+        assert_eq!(result.unwrap(), 0);
     }
 
     #[test]
@@ -258,9 +256,9 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let result = PersonTable::select_by_location(&tx, "Spain");
+        let result = PersonTable::count_by_location(&tx, "Spain");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 2);
+        assert_eq!(result.unwrap(), 2);
     }
 
     fn create_connection_and_table() -> Connection {

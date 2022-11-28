@@ -106,6 +106,10 @@ impl PersonAggregator {
         Ok(events)
     }
 
+    //
+    // Private functions
+    //
+
     fn write_person_event_for_insert(tx: &Transaction, person_id: u32, person: &PersonData) -> Result<(), rusqlite::Error> {
         let person_event = PersonEvent::for_insert(person_id, &person);
         Self::write_person_event_and_revision(&tx, &person_event)?;
@@ -167,8 +171,7 @@ impl PersonAggregator {
     fn write_location_event_for_delete(tx: &Transaction, person_id: u32, old_location: Option<String>) -> Result<(), rusqlite::Error> {
         if old_location.is_some() {
             let old_location = old_location.as_ref().unwrap();
-            let persons_with_location = PersonTable::select_by_location(&tx, old_location)?;
-            if persons_with_location.len() == 0 {
+            if PersonTable::count_by_location(&tx, old_location)? == 0 {
                 // This was the last person with old_location: create event for complete removal of location aggregate
                 let location_event = LocationEvent::for_delete(old_location);
                 Self::write_location_event_and_revision(&tx, &location_event)?;
