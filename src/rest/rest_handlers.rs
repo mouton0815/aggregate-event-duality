@@ -13,14 +13,14 @@ use crate::domain::person_patch::PersonPatch;
 use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
 
 
-pub type MutexedPersonAggregator = Arc<Mutex<PersonAggregator>>;
+pub type MutexedAggregator = Arc<Mutex<PersonAggregator>>;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 struct ErrorResult {
     error: String
 }
 
-pub async fn post_person(aggregator: MutexedPersonAggregator, path: &str, person: PersonData) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn post_person(aggregator: MutexedAggregator, path: &str, person: PersonData) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.insert(&person) {
         Ok(result) => {
@@ -38,7 +38,7 @@ pub async fn post_person(aggregator: MutexedPersonAggregator, path: &str, person
     }
 }
 
-pub async fn patch_person(aggregator: MutexedPersonAggregator, person_id: u32, person: PersonPatch) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn patch_person(aggregator: MutexedAggregator, person_id: u32, person: PersonPatch) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.update(person_id, &person) {
         Ok(result) => {
@@ -54,7 +54,7 @@ pub async fn patch_person(aggregator: MutexedPersonAggregator, person_id: u32, p
     }
 }
 
-pub async fn delete_person(aggregator: MutexedPersonAggregator, person_id: u32) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn delete_person(aggregator: MutexedAggregator, person_id: u32) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.delete(person_id) {
         Ok(result) => {
@@ -70,7 +70,7 @@ pub async fn delete_person(aggregator: MutexedPersonAggregator, person_id: u32) 
     }
 }
 
-pub async fn get_persons(aggregator: MutexedPersonAggregator) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn get_persons(aggregator: MutexedAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_persons() {
         Ok(result) => {
@@ -86,11 +86,11 @@ pub async fn get_persons(aggregator: MutexedPersonAggregator) -> Result<Box<dyn 
 
 struct PersonEventFetcher {
     offset: u32,
-    aggregator: MutexedPersonAggregator
+    aggregator: MutexedAggregator
 }
 
 impl PersonEventFetcher {
-    fn new(offset: u32, aggregator: MutexedPersonAggregator) -> Self {
+    fn new(offset: u32, aggregator: MutexedAggregator) -> Self {
         Self { offset, aggregator }
     }
 }
@@ -109,7 +109,7 @@ impl Fetcher<String> for PersonEventFetcher {
     }
 }
 
-pub async fn get_person_events(aggregator: MutexedPersonAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
+pub async fn get_person_events(aggregator: MutexedAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
     let from_revision = from_revision.unwrap_or(1);
     let fetcher = Box::new(PersonEventFetcher::new(from_revision, aggregator));
     let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
@@ -119,7 +119,7 @@ pub async fn get_person_events(aggregator: MutexedPersonAggregator, repeat_every
     Ok(sse::reply(stream))
 }
 
-pub async fn get_locations(aggregator: MutexedPersonAggregator) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn get_locations(aggregator: MutexedAggregator) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_locations() {
         Ok(result) => {
@@ -128,7 +128,42 @@ pub async fn get_locations(aggregator: MutexedPersonAggregator) -> Result<Box<dy
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))) // TODO: Better errors
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
         }
     }
+}
+
+struct LocationEventFetcher {
+    offset: u32,
+    aggregator: MutexedAggregator
+}
+
+impl LocationEventFetcher {
+    fn new(offset: u32, aggregator: MutexedAggregator) -> Self {
+        Self { offset, aggregator }
+    }
+}
+
+impl Fetcher<String> for LocationEventFetcher {
+    fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
+        let mut aggregator = self.aggregator.lock().unwrap();
+        let results = aggregator.get_location_events(self.offset);
+        return match results {
+            Err(err) => Err(err),
+            Ok(events) => {
+                self.offset += events.len() as u32;
+                Ok(events)
+            }
+        }
+    }
+}
+
+pub async fn get_location_events(aggregator: MutexedAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
+    let from_revision = from_revision.unwrap_or(1);
+    let fetcher = Box::new(LocationEventFetcher::new(from_revision, aggregator));
+    let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
+    let stream = stream.map(move |item| {
+        Ok::<Event, Infallible>(Event::default().data(item))
+    });
+    Ok(sse::reply(stream))
 }
