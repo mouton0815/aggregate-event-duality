@@ -145,8 +145,7 @@ impl PersonAggregator {
     fn write_location_event_for_insert(tx: &Transaction, person_id: u32, person: &PersonData) -> Result<(), rusqlite::Error> {
         if person.location.is_some() {
             let location = person.location.as_ref().unwrap();
-            let person_event = PersonEvent::for_insert(person_id, &person);
-            let location_event = LocationEvent::for_upsert(location, person_event);
+            let location_event = LocationEvent::for_insert_person(location, person_id, person);
             Self::write_location_event_and_revision(&tx, &location_event)?;
         }
         Ok(())
@@ -166,9 +165,8 @@ impl PersonAggregator {
         if need_update_event {
             // Old location of person is null or differs from new position:
             // Create event to add person to location aggregate
-            let person_event = PersonEvent::for_update(person_id, person);
-            let location_event = LocationEvent::for_upsert(new_location.unwrap(), person_event);
-            Self::write_location_event_and_revision(&tx, &location_event)?;
+            let event = LocationEvent::for_update_person(new_location.unwrap(), person_id, person);
+            Self::write_location_event_and_revision(&tx, &event)?;
         }
         Ok(())
     }
@@ -182,12 +180,11 @@ impl PersonAggregator {
             let old_location = old_location.as_ref().unwrap();
             if PersonTable::count_by_location(&tx, old_location)? == 0 {
                 // This was the last person with old_location: create event for complete removal of location aggregate
-                let location_event = LocationEvent::for_delete(old_location);
+                let location_event = LocationEvent::for_delete_location(old_location);
                 Self::write_location_event_and_revision(&tx, &location_event)?;
             } else {
                 // Other persons with old_location exist: create event for removal of only this person from location aggregate
-                let person_event = PersonEvent::for_delete(person_id);
-                let location_event = LocationEvent::for_upsert(old_location, person_event);
+                let location_event = LocationEvent::for_delete_person(old_location, person_id);
                 Self::write_location_event_and_revision(&tx, &location_event)?;
             }
         }

@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use serde::{Deserialize,Serialize};
+use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
+use crate::domain::person_patch::PersonPatch;
 
 /// A location event. The encapsulated map always contains exactly one person event.
 /// The implementation was chosen to produce the desired json output
@@ -15,11 +17,19 @@ impl LocationEvent {
         Self{ 0: map }
     }
 
-    pub fn for_upsert(location: &str, person_event: PersonEvent) -> Self {
-        Self::new(location, Some(person_event))
+    pub fn for_insert_person(location: &str, person_id: u32, person: &PersonData) -> Self {
+        Self::new(location, Some(PersonEvent::for_insert(person_id, person)))
     }
 
-    pub fn for_delete(location: &str) -> Self {
+    pub fn for_update_person(location: &str, person_id: u32, person: &PersonPatch) -> Self {
+        Self::new(location, Some(PersonEvent::for_update(person_id, person)))
+    }
+
+    pub fn for_delete_person(location: &str, person_id: u32) -> Self {
+        Self::new(location, Some(PersonEvent::for_delete(person_id)))
+    }
+
+    pub fn for_delete_location(location: &str) -> Self {
         Self::new(location, None)
     }
 }
@@ -28,30 +38,37 @@ impl LocationEvent {
 mod tests {
     use crate::domain::location_event::LocationEvent;
     use crate::domain::person_data::PersonData;
-    use crate::domain::person_event::PersonEvent;
+    use crate::domain::person_patch::PersonPatch;
+    use crate::util::patch::Patch;
 
     #[test]
-    pub fn test_location_event_values() {
-        let person_data = PersonData::new("Hans", Some("Here"), None);
-        let person_event = PersonEvent::for_insert(3, &person_data);
-        let location_event = LocationEvent::for_upsert("Here", person_event);
+    pub fn test_for_insert_person() {
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let event = LocationEvent::for_insert_person("Here", 3, &person);
         let json_ref = r#"{"Here":{"3":{"name":"Hans","location":"Here"}}}"#;
-        serde_and_verify(&location_event, json_ref);
+        serde_and_verify(&event, json_ref);
     }
 
     #[test]
-    pub fn test_person_event_null_person() {
-        let person_event = PersonEvent::for_delete(7);
-        let location_event = LocationEvent::for_upsert("Here", person_event);
+    pub fn test_for_update_person() {
+        let person = PersonPatch::new(Some("Hans"), Patch::Null, Patch::Absent);
+        let event = LocationEvent::for_update_person("Here", 5, &person);
+        let json_ref = r#"{"Here":{"5":{"name":"Hans","location":null}}}"#;
+        serde_and_verify(&event, json_ref);
+    }
+
+    #[test]
+    pub fn test_for_delete_person() {
+        let event = LocationEvent::for_delete_person("Here", 7);
         let json_ref = r#"{"Here":{"7":null}}"#;
-        serde_and_verify(&location_event, json_ref);
+        serde_and_verify(&event, json_ref);
     }
 
     #[test]
-    pub fn test_person_event_null_location() {
-        let location_event = LocationEvent::for_delete("Here");
+    pub fn test_for_delete_location() {
+        let event = LocationEvent::for_delete_location("Here");
         let json_ref = r#"{"Here":null}"#;
-        serde_and_verify(&location_event, json_ref);
+        serde_and_verify(&event, json_ref);
     }
 
     fn serde_and_verify(location_event_ref: &LocationEvent, json_ref: &str) {

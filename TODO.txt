@@ -7,5 +7,6 @@
 [X] Implement location aggregator and corresponding REST GET endpoints
 [X] Migrate person_aggregate_table to a namespace class
 [X] Fix location events on renaming
+[ ] Move event writing to different files
 [ ] Rename src/aggregator/person_aggregator.rs -> src/aggregator.rs
 [ ] Scheduler for event deletion
