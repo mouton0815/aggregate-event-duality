@@ -68,6 +68,7 @@ impl PersonAggregator {
                     Self::write_location_event_and_revision(&tx, &location_event)?;
                 } else {
                     // Other persons with old_location exist: create event for removal of only this person from location aggregate
+                    let person_event = PersonEvent::for_delete(person_id);
                     let location_event = LocationEvent::for_upsert(old_location, person_event);
                     Self::write_location_event_and_revision(&tx, &location_event)?;
                 }
@@ -359,7 +360,7 @@ mod tests {
         let events_ref = [
             r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
             r#"{"Here":{"2":{"name":"Fred","location":"Here"}}}"#,
-            r#"{"Here":{"1":{"name":"Inge","location":null}}}"#
+            r#"{"Here":{"1":null}}"#
         ];
         check_location_events(&mut aggregator, &events_ref);
     }
