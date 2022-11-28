@@ -47,31 +47,16 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         let old_location = LocationView::select_by_person(&tx, person_id)?;
         if PersonTable::update(&tx, person_id, &person)? {
-            // Create and write event for person aggregate
+            // Create and write events for person aggregate
             let person_event = PersonEvent::for_update(person_id, person);
             Self::write_person_event_and_revision(&tx, &person_event)?;
             // Create and write event for location aggregate
             if person.location.is_value() {
-                let new_location = person.location.as_ref().unwrap();
-                if old_location.is_none() || old_location.as_ref().unwrap() != new_location {
-                    // New location differs from old location of this person: create upsert event
-                    let location_event = LocationEvent::for_upsert(new_location, person_event);
-                    Self::write_location_event_and_revision(&tx, &location_event)?;
-                }
-            } else if person.location.is_null() && old_location.is_some() {
+                // Person has location: create event to update person in location aggregate
+                Self::write_location_event_for_update(&tx, old_location, person_id, person)?;
+            } else if person.location.is_null() {
                 // Location of person is null: create event to remove person from location aggregate
-                let old_location = old_location.as_ref().unwrap();
-                let persons_with_location = PersonTable::select_by_location(&tx, old_location)?;
-                if persons_with_location.len() == 0 {
-                    // This was the last person with old_location: create event for complete removal of location aggregate
-                    let location_event = LocationEvent::for_delete(old_location);
-                    Self::write_location_event_and_revision(&tx, &location_event)?;
-                } else {
-                    // Other persons with old_location exist: create event for removal of only this person from location aggregate
-                    let person_event = PersonEvent::for_delete(person_id);
-                    let location_event = LocationEvent::for_upsert(old_location, person_event);
-                    Self::write_location_event_and_revision(&tx, &location_event)?;
-                }
+                Self::write_location_event_for_delete(&tx, old_location, person_id)?;
             }
 
             // Select updated company aggregate for returning
@@ -88,10 +73,11 @@ impl PersonAggregator {
 
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
+        let old_location = LocationView::select_by_person(&tx, person_id)?;
         if PersonTable::delete(&tx, person_id)? {
             let person_event = PersonEvent::for_delete(person_id);
             Self::write_person_event_and_revision(&tx, &person_event)?;
-            // TODO: Update the location aggregate -- need to select the location first, arrg
+            Self::write_location_event_for_delete(&tx, old_location, person_id)?;
             tx.commit()?;
             info!("Deleted person aggregate {}", person_id);
             Ok(true)
@@ -145,6 +131,35 @@ impl PersonAggregator {
                 Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
             }
         }
+    }
+
+    fn write_location_event_for_update(tx: &Transaction, old_location: Option<String>, person_id: u32, person: &PersonPatch) -> Result<(), rusqlite::Error> {
+        let new_location = person.location.as_ref().unwrap();
+        if old_location.is_none() || old_location.as_ref().unwrap() != new_location {
+            // New location differs from old location of this person: create upsert event
+            let person_event = PersonEvent::for_update(person_id, person);
+            let location_event = LocationEvent::for_upsert(new_location, person_event);
+            Self::write_location_event_and_revision(&tx, &location_event)?;
+        }
+        Ok(())
+    }
+
+    fn write_location_event_for_delete(tx: &Transaction, old_location: Option<String>, person_id: u32) -> Result<(), rusqlite::Error> {
+        if old_location.is_some() {
+            let old_location = old_location.as_ref().unwrap();
+            let persons_with_location = PersonTable::select_by_location(&tx, old_location)?;
+            if persons_with_location.len() == 0 {
+                // This was the last person with old_location: create event for complete removal of location aggregate
+                let location_event = LocationEvent::for_delete(old_location);
+                Self::write_location_event_and_revision(&tx, &location_event)?;
+            } else {
+                // Other persons with old_location exist: create event for removal of only this person from location aggregate
+                let person_event = PersonEvent::for_delete(person_id);
+                let location_event = LocationEvent::for_upsert(old_location, person_event);
+                Self::write_location_event_and_revision(&tx, &location_event)?;
+            }
+        }
+        Ok(())
     }
 
     fn write_location_event_and_revision(tx: &Transaction, event: &LocationEvent) -> Result<u32, rusqlite::Error> {
@@ -396,6 +411,52 @@ mod tests {
 
         check_person_events(&mut aggregator, &[]);
         check_location_events(&mut aggregator, &[]);
+    }
+
+    #[test]
+    pub fn test_delete_events_remove_one_location() {
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("Here"), None);
+        let person2 = PersonData::new("Inge", Some("Here"), None);
+        assert!(aggregator.insert(&person1).is_ok());
+        assert!(aggregator.insert(&person2).is_ok());
+        assert!(aggregator.delete(1).is_ok());
+
+        let events_ref = [
+            r#"{"1":{"name":"Hans","location":"Here"}}"#,
+            r#"{"2":{"name":"Inge","location":"Here"}}"#,
+            r#"{"1":null}"#
+        ];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [
+            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
+            r#"{"Here":{"2":{"name":"Inge","location":"Here"}}}"#,
+            r#"{"Here":{"1":null}}"#
+        ];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
+    pub fn test_delete_events_remove_last_location() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("Here"), None);
+        assert!(aggregator.insert(&person).is_ok());
+        assert!(aggregator.delete(1).is_ok());
+
+        let events_ref = [
+            r#"{"1":{"name":"Hans","location":"Here"}}"#,
+            r#"{"1":null}"#
+        ];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [
+            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
+            r#"{"Here":null}"#
+        ];
+        check_location_events(&mut aggregator, &events_ref);
     }
 
     //
