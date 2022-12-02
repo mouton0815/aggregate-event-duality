@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
@@ -8,11 +8,11 @@ use crate::util::patch::Patch;
 /// The implementation was chosen to produce the desired json output
 /// <code>{ <person_id>: <person_data> }</code>.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct PersonEvent(BTreeMap<u32, Option<PersonPatch>>);
+pub struct PersonEvent(HashMap<u32, Option<PersonPatch>>);
 
 impl PersonEvent {
     fn new(person_id: u32, person_data: Option<PersonPatch>) -> Self {
-        let mut map = BTreeMap::new();
+        let mut map = HashMap::new();
         map.insert(person_id, person_data);
         Self{ 0: map }
     }
