@@ -11,46 +11,34 @@ use crate::domain::person_patch::PersonPatch;
 pub struct LocationEvent(BTreeMap<String, Option<PersonEvent>>);
 
 impl LocationEvent {
-    fn of_one(location: &str, person_event: Option<PersonEvent>) -> Self {
+    fn new(location: &str, person_event: Option<PersonEvent>) -> Self {
         let mut map = BTreeMap::new();
         map.insert(location.to_string(), person_event);
         Self{ 0: map }
     }
 
-    fn of_two(location1: &str, person_event1: Option<PersonEvent>,
-              location2: &str, person_event2: Option<PersonEvent>) -> Self {
-        let mut map = BTreeMap::new();
-        map.insert(location1.to_string(), person_event1);
-        map.insert(location2.to_string(), person_event2);
-        Self{ 0: map }
-    }
-
     pub fn for_insert_person(location: &str, person_id: u32, person: &PersonData) -> Self {
-        Self::of_one(location, Some(PersonEvent::for_insert(person_id, person)))
+        Self::new(location, Some(PersonEvent::for_insert(person_id, person)))
     }
 
     pub fn for_update_person(location: &str, person_id: u32, person: &PersonPatch) -> Self {
-        Self::of_one(location, Some(PersonEvent::for_update(person_id, person)))
+        Self::new(location, Some(PersonEvent::for_update(person_id, person)))
     }
 
-    pub fn for_move_person(old_location: &str, new_location: &str, person_id: u32, person: &PersonData) -> Self {
-        Self::of_two(
-            old_location, Some(PersonEvent::for_delete(person_id)),
-            new_location, Some(PersonEvent::for_insert(person_id, person)))
+    pub fn for_move_person(old_location: &str, new_location: &str, person_id: u32, person: &PersonData, is_last_in_old_location: bool) -> Self {
+        let mut event = Self::new(new_location, Some(PersonEvent::for_insert(person_id, person)));
+        event.0.insert(old_location.to_string(), match is_last_in_old_location {
+            false => Some(PersonEvent::for_delete(person_id)),
+            true => None
+        });
+        event
     }
 
-    pub fn for_move_person_and_delete_location(old_location: &str, new_location: &str, person_id: u32, person: &PersonData) -> Self {
-        Self::of_two(
-            old_location, None,
-            new_location, Some(PersonEvent::for_insert(person_id, person)))
-    }
-
-    pub fn for_delete_person(location: &str, person_id: u32) -> Self {
-        Self::of_one(location, Some(PersonEvent::for_delete(person_id)))
-    }
-
-    pub fn for_delete_location(location: &str) -> Self {
-        Self::of_one(location, None)
+    pub fn for_delete_person(location: &str, person_id: u32, is_last_in_location: bool) -> Self {
+        Self::new(location, match is_last_in_location {
+            false => Some(PersonEvent::for_delete(person_id)),
+            true => None
+        })
     }
 }
 
@@ -80,7 +68,7 @@ mod tests {
     #[test]
     pub fn test_for_move_person() {
         let person = PersonData::new("Hans", Some("Here"), None);
-        let event = LocationEvent::for_move_person("Here", "There", 5, &person);
+        let event = LocationEvent::for_move_person("Here", "There", 5, &person, false);
         let json_ref = r#"{"Here":{"5":null},"There":{"5":{"name":"Hans","location":"Here"}}}"#;
         serde_and_verify(&event, json_ref);
     }
@@ -88,21 +76,21 @@ mod tests {
     #[test]
     pub fn test_for_move_person_and_delete_location() {
         let person = PersonData::new("Hans", Some("Here"), None);
-        let event = LocationEvent::for_move_person_and_delete_location("Here", "There", 5, &person);
+        let event = LocationEvent::for_move_person("Here", "There", 5, &person, true);
         let json_ref = r#"{"Here":null,"There":{"5":{"name":"Hans","location":"Here"}}}"#;
         serde_and_verify(&event, json_ref);
     }
 
     #[test]
     pub fn test_for_delete_person() {
-        let event = LocationEvent::for_delete_person("Here", 7);
+        let event = LocationEvent::for_delete_person("Here", 7, false);
         let json_ref = r#"{"Here":{"7":null}}"#;
         serde_and_verify(&event, json_ref);
     }
 
     #[test]
     pub fn test_for_delete_location() {
-        let event = LocationEvent::for_delete_location("Here");
+        let event = LocationEvent::for_delete_person("Here", 7, true);
         let json_ref = r#"{"Here":null}"#;
         serde_and_verify(&event, json_ref);
     }

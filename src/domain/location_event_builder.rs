@@ -14,7 +14,7 @@ impl LocationEventBuilder {
         }
     }
 
-    pub fn for_update(person_id: u32, person_patch: &PersonPatch, person_data: &PersonData, old_location: Option<&str>, is_last_with_old_location: bool) -> Option<String> {
+    pub fn for_update(person_id: u32, person_patch: &PersonPatch, person_data: &PersonData, old_location: Option<&str>, is_last_in_aggregate: bool) -> Option<String> {
         let new_location = person_patch.location.as_ref();
         if old_location.is_none() && !new_location.is_value() {
             // No location information before and after
@@ -22,31 +22,23 @@ impl LocationEventBuilder {
         } else if old_location.is_none() && new_location.is_value() {
             // Update sets a location
             Self::stringify(LocationEvent::for_insert_person(new_location.unwrap(), person_id, person_data))
-        } else if new_location.is_null() && is_last_with_old_location {
-            // Update clears the location (the person was the last one with old_location)
-            Self::stringify(LocationEvent::for_delete_location(old_location.unwrap()))
         } else if new_location.is_null() {
-            // Update clears the location (there are other persons with old_location)
-            Self::stringify(LocationEvent::for_delete_person(old_location.unwrap(), person_id))
+            // Update clears the location
+            Self::stringify(LocationEvent::for_delete_person(old_location.unwrap(), person_id, is_last_in_aggregate))
         } else if new_location.is_absent() || new_location.is_value() && old_location.unwrap() == new_location.unwrap() {
             // Update keeps the location
             Self::stringify(LocationEvent::for_update_person(old_location.unwrap(), person_id, person_patch))
-        } else if is_last_with_old_location {
-            // Update changes the location (the person was the last one with old_location)
-            Self::stringify(LocationEvent::for_move_person_and_delete_location(old_location.unwrap(), new_location.unwrap(), person_id, person_data))
         } else {
-            // Update changes the location (there are other persons with old_location)
-            Self::stringify(LocationEvent::for_move_person(old_location.unwrap(), new_location.unwrap(), person_id, person_data))
+            // Update changes the location
+            Self::stringify(LocationEvent::for_move_person(old_location.unwrap(), new_location.unwrap(), person_id, person_data, is_last_in_aggregate))
         }
     }
 
-    pub fn for_delete(person_id: u32, old_location: Option<&str>, is_last_with_old_location: bool) -> Option<String> {
+    pub fn for_delete(person_id: u32, old_location: Option<&str>, is_last_in_aggregate: bool) -> Option<String> {
         if old_location.is_none() {
             None
-        } else if is_last_with_old_location {
-            Self::stringify(LocationEvent::for_delete_location(old_location.unwrap()))
         } else {
-            Self::stringify(LocationEvent::for_delete_person(old_location.unwrap(), person_id))
+            Self::stringify(LocationEvent::for_delete_person(old_location.unwrap(), person_id, is_last_in_aggregate))
         }
     }
 

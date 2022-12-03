@@ -180,11 +180,11 @@ impl PersonAggregator {
             let old_location = old_location.as_ref().unwrap();
             if PersonTable::count_by_location(&tx, old_location)? == 0 {
                 // This was the last person with old_location: create event for complete removal of location aggregate
-                let location_event = LocationEvent::for_delete_location(old_location);
+                let location_event = LocationEvent::for_delete_person(old_location, person_id, true);
                 Self::write_location_event_and_revision(&tx, &location_event)?;
             } else {
                 // Other persons with old_location exist: create event for removal of only this person from location aggregate
-                let location_event = LocationEvent::for_delete_person(old_location, person_id);
+                let location_event = LocationEvent::for_delete_person(old_location, person_id, false);
                 Self::write_location_event_and_revision(&tx, &location_event)?;
             }
         }
