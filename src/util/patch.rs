@@ -10,6 +10,20 @@ pub enum Patch<T> {
 }
 
 impl<T> Patch<T> {
+    pub fn of_options(old: &Option<T>, new: &Option<T>) -> Self where T: Clone + PartialEq {
+        if old.is_none() && new.is_none() {
+            Patch::Absent
+        } else if old.is_none() && new.is_some() {
+            Patch::Value(new.as_ref().unwrap().clone())
+        } else if old.is_some() && new.is_none() {
+            Patch::Null
+        } else if old.as_ref().unwrap() != new.as_ref().unwrap() {
+            Patch::Value(new.as_ref().unwrap().clone())
+        } else {
+            Patch::Absent
+        }
+    }
+
     pub const fn is_value(&self) -> bool {
         matches!(*self, Patch::Value(_))
     }
@@ -46,6 +60,10 @@ impl<T> Patch<T> {
         }
     }
 }
+
+//
+// Implement traits
+//
 
 // https://stackoverflow.com/a/44332837
 impl<T> Default for Patch<T> {
@@ -109,6 +127,36 @@ mod tests {
         #[serde(default)]
         #[serde(skip_serializing_if = "Patch::is_absent")]
         c: Patch<Vec<i32>>
+    }
+
+    #[test]
+    pub fn test_of_options_none_none() {
+        let t : Patch<usize> = Patch::of_options(&None, &None);
+        assert_eq!(t, Patch::Absent);
+    }
+
+    #[test]
+    pub fn test_of_options_none_some() {
+        let t = Patch::of_options(&None, &Some("foo"));
+        assert_eq!(t, Patch::Value("foo"));
+    }
+
+    #[test]
+    pub fn test_of_options_some_none() {
+        let t = Patch::of_options(&Some("foo"), &None);
+        assert_eq!(t, Patch::Null);
+    }
+
+    #[test]
+    pub fn test_of_options_equal() {
+        let t = Patch::of_options(&Some("foo"), &Some("foo"));
+        assert_eq!(t, Patch::Absent);
+    }
+
+    #[test]
+    pub fn test_of_options_differ() {
+        let t = Patch::of_options(&Some("foo"), &Some("bar"));
+        assert_eq!(t, Patch::Value("bar"));
     }
 
     #[test]
