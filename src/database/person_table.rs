@@ -166,12 +166,7 @@ mod tests {
     #[test]
     fn test_update() {
         let person = PersonData::new("Hans", Some("Germany"), Some(123));
-
-        let person_update = PersonPatch {
-            name: None,
-            location: Patch::Null,
-            spouse_id: Patch::Value(100)
-        };
+        let person_update = PersonPatch::new(None, Patch::Null, Patch::Value(100));
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -188,12 +183,7 @@ mod tests {
     #[test]
 
     fn test_update_missing() {
-        // TODO: Ctor for PersonPatch
-        let person_update = PersonPatch {
-            name: None,
-            location: Patch::Null,
-            spouse_id: Patch::Absent
-        };
+        let person_update = PersonPatch::new(None, Patch::Null, Patch::Absent);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
