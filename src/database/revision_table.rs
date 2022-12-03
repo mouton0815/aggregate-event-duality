@@ -11,23 +11,23 @@ const REVISION_TABLE: &'static str = "revision";
 
 // The tableId field denotes the corresponding aggregate tables
 // e.g. RevisionType::PERSON = 1 => "person_aggregate"
-const CREATE_REVISION_TABLE: &'static str = formatcp!("
-    CREATE TABLE IF NOT EXISTS {} (
+const CREATE_REVISION_TABLE: &'static str = formatcp!(
+    "CREATE TABLE IF NOT EXISTS {} (
         tableId INTEGER NOT NULL PRIMARY KEY,
         revision INTEGER NOT NULL
     )",
     REVISION_TABLE
 );
 
-const UPSERT_REVISION: &'static str = formatcp!("
-    INSERT INTO {} (tableId, revision) VALUES (?, ?)
+const UPSERT_REVISION: &'static str = formatcp!(
+    "INSERT INTO {} (tableId, revision) VALUES (?, ?)
       ON CONFLICT(tableId) DO
       UPDATE SET revision = excluded.revision",
     REVISION_TABLE
 );
 
-const SELECT_REVISION : &'static str = formatcp!("
-    SELECT revision FROM {} WHERE tableId = ?",
+const SELECT_REVISION : &'static str = formatcp!(
+    "SELECT revision FROM {} WHERE tableId = ?",
     REVISION_TABLE
 );
 
@@ -36,13 +36,13 @@ pub struct RevisionTable;
 
 impl RevisionTable {
     pub fn create_table(conn: &Connection) -> Result<()> {
-        debug!("Execute {}", CREATE_REVISION_TABLE);
+        debug!("Execute\n{}", CREATE_REVISION_TABLE);
         conn.execute(CREATE_REVISION_TABLE, [])?;
         Ok(())
     }
 
     pub fn upsert(tx: &Transaction, revision_type: RevisionType, revision: u32) -> Result<()> {
-        debug!("Execute {} with: {}", UPSERT_REVISION, revision);
+        debug!("Execute\n{} with: {}", UPSERT_REVISION, revision);
         tx.execute(UPSERT_REVISION, params![revision_type as u32, revision])?;
         Ok(())
     }

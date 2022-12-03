@@ -102,7 +102,6 @@ impl PersonAggregator {
     }
 
     // TODO: Use streams (for all collection results)
-    // TODO: Put into own class (but then passing a Connection does not work...)
     pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::LOCATION)?;

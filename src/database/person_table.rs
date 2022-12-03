@@ -7,8 +7,8 @@ use crate::domain::person_patch::PersonPatch;
 
 pub const PERSON_TABLE: &'static str = "person";
 
-const CREATE_PERSON_TABLE : &'static str = formatcp!("
-    CREATE TABLE IF NOT EXISTS {} (
+const CREATE_PERSON_TABLE : &'static str = formatcp!(
+    "CREATE TABLE IF NOT EXISTS {} (
         personId INTEGER NOT NULL PRIMARY KEY,
         name TEXT NOT NULL,
         location TEXT,
@@ -17,29 +17,29 @@ const CREATE_PERSON_TABLE : &'static str = formatcp!("
     PERSON_TABLE
 );
 
-const INSERT_PERSON : &'static str = formatcp!("
-    INSERT INTO {} (name, location, spouseId) VALUES (?, ?, ?)
+const INSERT_PERSON : &'static str = formatcp!(
+    "INSERT INTO {} (name, location, spouseId) VALUES (?, ?, ?)
     ON CONFLICT DO NOTHING",
     PERSON_TABLE
 );
 
-const DELETE_PERSON : &'static str = formatcp!("
-    DELETE FROM {} WHERE personId = ?",
+const DELETE_PERSON : &'static str = formatcp!(
+    "DELETE FROM {} WHERE personId = ?",
     PERSON_TABLE
 );
 
-const SELECT_PERSONS : &'static str = formatcp!("
-    SELECT personId, name, location, spouseId FROM {}",
+const SELECT_PERSONS : &'static str = formatcp!(
+    "SELECT personId, name, location, spouseId FROM {}",
     PERSON_TABLE
 );
 
-const COUNT_PERSONS_WITH_LOCATION: &'static str = formatcp!("
-    SELECT COUNT(personId) FROM {} WHERE location = ?",
+const COUNT_PERSONS_WITH_LOCATION: &'static str = formatcp!(
+    "SELECT COUNT(personId) FROM {} WHERE location = ?",
     PERSON_TABLE
 );
 
-const SELECT_PERSON : &'static str = formatcp!("
-    SELECT personId, name, location, spouseId FROM {} WHERE personId = ?",
+const SELECT_PERSON : &'static str = formatcp!(
+    "SELECT personId, name, location, spouseId FROM {} WHERE personId = ?",
     PERSON_TABLE
 );
 
@@ -48,13 +48,13 @@ pub struct PersonTable;
 
 impl PersonTable {
     pub fn create_table(conn: &Connection) -> Result<()> {
-        debug!("Execute {}", CREATE_PERSON_TABLE);
+        debug!("Execute\n{}", CREATE_PERSON_TABLE);
         conn.execute(CREATE_PERSON_TABLE, [])?;
         Ok(())
     }
 
     pub fn insert(tx: &Transaction, person: &PersonData) -> Result<u32> {
-        debug!("Execute {}\nwith: {:?}", INSERT_PERSON, person);
+        debug!("Execute\n{}\nwith: {:?}", INSERT_PERSON, person);
         let values = params![person.name, person.location, person.spouse_id];
         tx.execute(INSERT_PERSON, values)?;
         Ok(tx.last_insert_rowid() as u32)
@@ -91,13 +91,13 @@ impl PersonTable {
     }
 
     pub fn delete(tx: &Transaction, person_id: u32) -> Result<bool> {
-        debug!("Execute {} with: {}", DELETE_PERSON, person_id);
+        debug!("Execute\n{} with: {}", DELETE_PERSON, person_id);
         let row_count = tx.execute(DELETE_PERSON, params![person_id])?;
         Ok(row_count == 1)
     }
 
     pub fn select_all(tx: &Transaction) -> Result<PersonMap> {
-        debug!("Execute {}", SELECT_PERSONS);
+        debug!("Execute\n{}", SELECT_PERSONS);
         let mut stmt = tx.prepare(SELECT_PERSONS)?;
         let rows = stmt.query_map([], |row| {
             Self::row_to_person_data(row)
@@ -111,7 +111,7 @@ impl PersonTable {
     }
 
     pub fn select_by_id(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
-        debug!("Execute {} with: {}", SELECT_PERSON, person_id);
+        debug!("Execute\n{} with: {}", SELECT_PERSON, person_id);
         let mut stmt = tx.prepare(SELECT_PERSON)?;
         stmt.query_row([person_id], |row | {
             Ok(Self::row_to_person_data(row)?.1)
@@ -119,7 +119,7 @@ impl PersonTable {
     }
 
     pub fn count_by_location(tx: &Transaction, location: &str) -> Result<usize> {
-        debug!("Execute {} with {}", COUNT_PERSONS_WITH_LOCATION, location);
+        debug!("Execute\n{} with {}", COUNT_PERSONS_WITH_LOCATION, location);
         let mut stmt = tx.prepare(COUNT_PERSONS_WITH_LOCATION)?;
         stmt.query_row([location], |row | {
             row.get(0)

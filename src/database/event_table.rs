@@ -18,7 +18,7 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
                 revision INTEGER NOT NULL PRIMARY KEY,
                 event TEXT NOT NULL
             )", Self::table_name(TABLE_TYPE));
-        debug!("Execute {}", stmt);
+        debug!("Execute\n{}", stmt);
         conn.execute(stmt.as_str(), [])?;
         Ok(())
     }
@@ -27,7 +27,7 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
         let stmt = format!(
             "INSERT INTO {} (event) VALUES (?)",
             Self::table_name(TABLE_TYPE));
-        debug!("Execute {} with: {}", stmt, event);
+        debug!("Execute\n{}\nwith: {}", stmt, event);
         tx.execute(stmt.as_str(), params![event])?;
         Ok(tx.last_insert_rowid() as u32)
     }
@@ -36,7 +36,7 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
         let stmt = format!(
             "SELECT event FROM {} WHERE revision >= ? ORDER BY revision",
             Self::table_name(TABLE_TYPE));
-        debug!("Execute {} with: {}", stmt, from_revision);
+        debug!("Execute\n{} with: {}", stmt, from_revision);
         let mut stmt = tx.prepare(stmt.as_str())?;
         let rows = stmt.query_map([from_revision], |row| {
             let json: String = row.get(0)?;
@@ -56,8 +56,8 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
     // https://rust-lang.github.io/rfcs/2000-const-generics.html
     fn table_name(table_type: usize) -> &'static str {
         match table_type {
-            0 => "person_table",
-            1 => "location_table",
+            0 => "person_event",
+            1 => "location_event",
             _ => panic!("Unknown event table type {}", table_type)
         }
     }
