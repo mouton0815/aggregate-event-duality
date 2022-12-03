@@ -34,6 +34,10 @@ impl PersonPatch {
         let spouse_id = Patch::of_options(&old.spouse_id, &new.spouse_id);
         PersonPatch{ name, location, spouse_id }
     }
+
+    pub fn is_noop(&self) -> bool {
+        self.name.is_none() && self.location.is_absent() && self.spouse_id.is_absent()
+    }
 }
 
 #[cfg(test)]
@@ -77,6 +81,36 @@ mod tests {
         let new = PersonData::new("Hans", None, None);
         let cmp = PersonPatch::new(None, Patch::Null, Patch::Null);
         assert_eq!(PersonPatch::of(&old, &new), cmp);
+    }
+
+    #[test]
+    pub fn test_noop1() {
+        let person = PersonPatch::new(None, Patch::Value("foo"), Patch::Absent);
+        assert_eq!(person.is_noop(), false);
+    }
+
+    #[test]
+    pub fn test_noop2() {
+        let person = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Absent);
+        assert_eq!(person.is_noop(), false);
+    }
+
+    #[test]
+    pub fn test_noop3() {
+        let person = PersonPatch::new(None, Patch::Absent, Patch::Value(123));
+        assert_eq!(person.is_noop(), false);
+    }
+
+    #[test]
+    pub fn test_noop4() {
+        let person = PersonPatch::new(None, Patch::Null, Patch::Absent);
+        assert_eq!(person.is_noop(), false);
+    }
+
+    #[test]
+    pub fn test_noop5() {
+        let person = PersonPatch::new(None, Patch::Absent, Patch::Absent);
+        assert_eq!(person.is_noop(), true);
     }
 
     fn serde_and_verify(person_ref: &PersonPatch, json_ref: &str) {
