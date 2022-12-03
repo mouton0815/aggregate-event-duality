@@ -1,6 +1,6 @@
 use const_format::formatcp;
 use log::debug;
-use rusqlite::{Error, Result, Row, Transaction};
+use rusqlite::{Result, Row, Transaction};
 use crate::domain::location_map::LocationMap;
 use crate::database::person_table::PERSON_TABLE;
 use crate::domain::person_data::PersonData;
@@ -11,12 +11,6 @@ const SELECT_LOCATIONS : &'static str = formatcp!("
     PERSON_TABLE
 );
 
-const SELECT_LOCATION_OF_PERSON: &'static str = formatcp!("
-    SELECT location FROM {} WHERE personId = ?",
-    PERSON_TABLE
-);
-
-// This is just a namespace to keep method names short
 pub struct LocationView;
 
 impl LocationView {
@@ -43,19 +37,6 @@ impl LocationView {
             location_map.put(last_location.unwrap().as_str(), person_map);
         }
         Ok(location_map)
-    }
-
-    pub fn select_by_person(tx: &Transaction, person_id: u32) -> Result<Option<String>> {
-        debug!("Execute {} with {}", SELECT_LOCATION_OF_PERSON, person_id);
-        let mut stmt = tx.prepare(SELECT_LOCATION_OF_PERSON)?;
-        let result = stmt.query_row([person_id], |row | {
-            row.get::<usize, Option<String>>(0)
-        });
-        match result { // Cannot use OptionalExtension as this wraps the result into another Option
-            Ok(value) => Ok(value),
-            Err(Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e),
-        }
     }
 
     fn row_to_person_data(row: &Row) -> Result<(String, u32, PersonData)> {
@@ -173,37 +154,6 @@ mod tests {
         assert_eq!(result, location_map);
     }
 
-    #[test]
-    fn test_read_location_of_empty() {
-        let mut conn = create_connection_and_table();
-        assert_eq!(read_location(&mut conn, 1), None);
-    }
-
-    #[test]
-    fn test_read_location_of_none() {
-        let person = PersonData::new("Inge", None, None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person).is_ok());
-        assert!(tx.commit().is_ok());
-
-        assert_eq!(read_location(&mut conn, 1), None);
-    }
-
-    #[test]
-    fn test_read_location_of_some() {
-        let person = PersonData::new("Inge", Some("Anywhere"), None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let result = read_location(&mut conn, 1);
-        assert_eq!(result, Some("Anywhere".to_string()));
-    }
-
     fn create_connection() -> Connection {
         let conn = Connection::open(":memory:");
         assert!(conn.is_ok());
@@ -221,16 +171,6 @@ mod tests {
         assert!(tx.is_ok());
         let tx = tx.unwrap();
         let result = LocationView::select_all(&tx);
-        assert!(tx.commit().is_ok());
-        assert!(result.is_ok());
-        result.unwrap()
-    }
-
-    fn read_location(conn: &mut Connection, person_id: u32) -> Option<String> {
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        let tx = tx.unwrap();
-        let result = LocationView::select_by_person(&tx, person_id);
         assert!(tx.commit().is_ok());
         assert!(result.is_ok());
         result.unwrap()

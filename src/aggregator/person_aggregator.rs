@@ -6,13 +6,12 @@ use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_view::LocationView;
 use crate::database::person_table::PersonTable;
 use crate::database::revision_table::{RevisionTable, RevisionType};
-use crate::domain::location_event::LocationEvent;
+use crate::domain::location_event_builder::LocationEventBuilder;
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
-use crate::domain::person_event::PersonEvent;
+use crate::domain::person_event_builder::PersonEventBuilder;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
-use crate::util::patch::Patch;
 
 pub struct PersonAggregator {
     conn: Connection
@@ -28,50 +27,64 @@ impl PersonAggregator {
         Ok(PersonAggregator { conn })
     }
 
-    pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData), Box<dyn Error>> {
+    pub fn insert<'a>(&mut self, person: &'a PersonData) -> Result<(u32, &'a PersonData), Box<dyn Error>> {
         let tx = self.conn.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         // Create and write events and their revisions
-        Self::write_person_event_for_insert(&tx, person_id, person)?;
-        Self::write_location_event_for_insert(&tx, person_id, person)?;
-        // Select updated company aggregate for returning
-        let aggregate = PersonTable::select_by_id(&tx, person_id)?.unwrap(); // Must exist
+        let event = PersonEventBuilder::for_insert(person_id, &person);
+        Self::write_person_event_and_revision(&tx, event)?;
+        let event = LocationEventBuilder::for_insert(person_id, &person);
+        Self::write_location_event_and_revision(&tx, event)?;
         tx.commit()?;
-        info!("Created {:?} from {:?}", aggregate, person);
-        Ok((person_id, aggregate))
+        info!("Created {:?}", person);
+        Ok((person_id, person))
     }
 
-    pub fn update(&mut self, person_id: u32, person: &PersonPatch) -> Result<Option<PersonData>, rusqlite::Error> {
+    pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>, rusqlite::Error> {
         let tx = self.conn.transaction()?;
-        let old_location = LocationView::select_by_person(&tx, person_id)?;
-        if PersonTable::update(&tx, person_id, &person)? {
-            Self::write_person_event_for_update(&tx, person_id, person)?;
-            Self::write_location_event_for_update(&tx, person_id, person, old_location)?;
-            // Select updated company aggregate for returning (must exist)
-            let aggregate = PersonTable::select_by_id(&tx, person_id)?.unwrap();
-            tx.commit()?;
-            info!("Updated {:?} from {:?}", aggregate, person);
-            Ok(Some(aggregate))
-        } else {
-            tx.rollback()?; // There should be no changes, so tx.commit() would also work
-            warn!("Person aggregate {} not found", person_id);
-            Ok(None)
+        match PersonTable::select_by_id(&tx, person_id)? {
+            Some(before) => {
+                // TODO: update() should return insertion result
+                PersonTable::update(&tx, person_id, &patch)?;
+                let after = PersonTable::select_by_id(&tx, person_id)?.unwrap();
+                // Create and write events and their revisions
+                let event = PersonEventBuilder::for_update(person_id, &patch);
+                Self::write_person_event_and_revision(&tx, event)?;
+                let is_last = Self::is_last_location(&tx, &before)?;
+                let event = LocationEventBuilder::for_update(person_id, &before, &after, is_last);
+                Self::write_location_event_and_revision(&tx, event)?;
+                tx.commit()?;
+                info!("Updated {:?} from {:?}", before, patch);
+                Ok(Some(after))
+            },
+            None => {
+                tx.rollback()?; // There should be no changes, so tx.commit() would also work
+                warn!("Person {} not found", person_id);
+                Ok(None)
+            }
         }
     }
 
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
         let tx = self.conn.transaction()?;
-        let old_location = LocationView::select_by_person(&tx, person_id)?;
-        if PersonTable::delete(&tx, person_id)? {
-            Self::write_person_event_for_delete(&tx, person_id)?;
-            Self::write_location_event_for_delete(&tx, person_id, old_location)?;
-            tx.commit()?;
-            info!("Deleted person aggregate {}", person_id);
-            Ok(true)
-        } else {
-            tx.rollback()?; // There should be no changes, so tx.commit() would also work
-            warn!("Person aggregate {} not found", person_id);
-            Ok(false)
+        match PersonTable::select_by_id(&tx, person_id)? {
+            Some(before) => {
+                PersonTable::delete(&tx, person_id)?;
+                // Create and write events and their revisions
+                let event = PersonEventBuilder::for_delete(person_id);
+                Self::write_person_event_and_revision(&tx, event)?;
+                let is_last = Self::is_last_location(&tx, &before)?;
+                let event = LocationEventBuilder::for_delete(person_id, &before, is_last);
+                Self::write_location_event_and_revision(&tx, event)?;
+                tx.commit()?;
+                info!("Deleted {:?}", before);
+                Ok(true)
+            },
+            None => {
+                tx.rollback()?; // There should be no changes, so tx.commit() would also work
+                warn!("Person {} not found", person_id);
+                Ok(false)
+            }
         }
     }
 
@@ -111,97 +124,25 @@ impl PersonAggregator {
     // Private functions
     //
 
-    fn write_person_event_for_insert(tx: &Transaction, person_id: u32, person: &PersonData) -> Result<(), rusqlite::Error> {
-        let person_event = PersonEvent::for_insert(person_id, &person);
-        Self::write_person_event_and_revision(&tx, &person_event)?;
-        Ok(())
-    }
-
-    fn write_person_event_for_update(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<(), rusqlite::Error> {
-        let person_event = PersonEvent::for_update(person_id, person);
-        Self::write_person_event_and_revision(&tx, &person_event)?;
-        Ok(())
-    }
-
-    fn write_person_event_for_delete(tx: &Transaction, person_id: u32) -> Result<(), rusqlite::Error> {
-        let person_event = PersonEvent::for_delete(person_id);
-        Self::write_person_event_and_revision(&tx, &person_event)?;
-        Ok(())
-    }
-
-    fn write_person_event_and_revision(tx: &Transaction, event: &PersonEvent) -> Result<u32, rusqlite::Error> {
-        match serde_json::to_string(&event) {
-            Ok(json) => {
-                let revision = PersonEventTable::insert(&tx, json.as_str())?;
-                RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
-                Ok(revision)
-            },
-            Err(error) => {
-                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
-            }
+    fn is_last_location(tx: &Transaction, person: &PersonData) -> Result<bool, rusqlite::Error> {
+        match person.location.as_ref() {
+            Some(location) => Ok(PersonTable::count_by_location(tx, location)? == 0),
+            None => Ok(false)
         }
     }
 
-    fn write_location_event_for_insert(tx: &Transaction, person_id: u32, person: &PersonData) -> Result<(), rusqlite::Error> {
-        if person.location.is_some() {
-            let location = person.location.as_ref().unwrap();
-            let location_event = LocationEvent::for_insert_person(location, person_id, person);
-            Self::write_location_event_and_revision(&tx, &location_event)?;
-        }
+    fn write_person_event_and_revision(tx: &Transaction, event: String) -> Result<(), rusqlite::Error> {
+        let revision = PersonEventTable::insert(&tx, event.as_str())?;
+        RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
         Ok(())
     }
 
-    fn write_location_event_for_update(tx: &Transaction, person_id: u32, person: &PersonPatch, old_location: Option<String>) -> Result<(), rusqlite::Error> {
-        let new_location = person.location.as_ref();
-        let need_delete_event = old_location.is_some() && new_location.is_null()
-            || Self::locations_differ(old_location.as_ref(), new_location);
-        let need_update_event = old_location.is_none() && new_location.is_value()
-            || Self::locations_differ(old_location.as_ref(), new_location);
-        if need_delete_event {
-            // New location of person is null or differs from old position:
-            // Create event to remove person from location aggregate
-            Self::write_location_event_for_delete(&tx, person_id, old_location)?;
-        }
-        if need_update_event {
-            // Old location of person is null or differs from new position:
-            // Create event to add person to location aggregate
-            let event = LocationEvent::for_update_person(new_location.unwrap(), person_id, person);
-            Self::write_location_event_and_revision(&tx, &event)?;
+    fn write_location_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
+        if event.is_some() {
+            let revision = LocationEventTable::insert(&tx, event.unwrap().as_str())?;
+            RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
         }
         Ok(())
-    }
-
-    fn locations_differ(old_location: Option<&String>, new_location: Patch<&String>) -> bool {
-        old_location.is_some() && new_location.is_value() && old_location.unwrap() != new_location.unwrap()
-    }
-
-    fn write_location_event_for_delete(tx: &Transaction, person_id: u32, old_location: Option<String>) -> Result<(), rusqlite::Error> {
-        if old_location.is_some() {
-            let old_location = old_location.as_ref().unwrap();
-            if PersonTable::count_by_location(&tx, old_location)? == 0 {
-                // This was the last person with old_location: create event for complete removal of location aggregate
-                let location_event = LocationEvent::for_delete_person(old_location, person_id, true);
-                Self::write_location_event_and_revision(&tx, &location_event)?;
-            } else {
-                // Other persons with old_location exist: create event for removal of only this person from location aggregate
-                let location_event = LocationEvent::for_delete_person(old_location, person_id, false);
-                Self::write_location_event_and_revision(&tx, &location_event)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn write_location_event_and_revision(tx: &Transaction, event: &LocationEvent) -> Result<u32, rusqlite::Error> {
-        match serde_json::to_string(&event) {
-            Ok(json) => {
-                let revision = LocationEventTable::insert(&tx, json.as_str())?;
-                RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
-                Ok(revision)
-            },
-            Err(error) => {
-                Err(rusqlite::Error::ToSqlConversionFailure(Box::new(error)))
-            }
-        }
     }
 }
 
@@ -228,7 +169,7 @@ mod tests {
         assert!(person_res.is_ok());
         let (person_id, person_data) = person_res.unwrap();
         assert_eq!(person_id, 1);
-        assert_eq!(person_data, person);
+        assert_eq!(person_data, &person);
     }
 
     #[test]
@@ -378,7 +319,8 @@ mod tests {
         check_person_events(&mut aggregator, &events_ref);
 
         let events_ref = [
-            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#
+            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
+            r#"{"Here":{"1":{"spouseId":123}}}"#,
         ];
         check_location_events(&mut aggregator, &events_ref);
     }
@@ -404,8 +346,7 @@ mod tests {
         let events_ref = [
             r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
             r#"{"Here":{"2":{"name":"Inge","location":"Here"}}}"#,
-            r#"{"Here":{"1":null}}"#,
-            r#"{"There":{"1":{"name":"Hans","location":"There"}}}"#,
+            r#"{"Here":{"1":null},"There":{"1":{"name":"Hans","location":"There"}}}"#,
         ];
         check_location_events(&mut aggregator, &events_ref);
     }
@@ -427,8 +368,7 @@ mod tests {
 
         let events_ref = [
             r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
-            r#"{"Here":null}"#,
-            r#"{"There":{"1":{"name":"Hans","location":"There"}}}"#,
+            r#"{"Here":null,"There":{"1":{"name":"Hans","location":"There"}}}"#,
         ];
         check_location_events(&mut aggregator, &events_ref);
     }
