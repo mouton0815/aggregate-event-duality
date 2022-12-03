@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use crate::domain::person_data::PersonData;
 use crate::util::patch::Patch;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -19,39 +20,63 @@ pub struct PersonPatch {
 
 impl PersonPatch {
     /// Convenience function that takes &str literals
-    pub fn new(name: Option<&str>, location: Patch<&str>, spouse_id: Patch<u32>) -> PersonPatch {
+    pub fn new(name: Option<&str>, location: Patch<&str>, spouse_id: Patch<u32>) -> Self {
         PersonPatch {
             name: name.map(|n| String::from(n)),
             location: location.map(|l| String::from(l)),
             spouse_id
         }
     }
+
+    pub fn of(old: &PersonData, new: &PersonData) -> Self {
+        let name = if old.name == new.name { None } else { Some(new.name.clone()) };
+        let location = Patch::of_options(&old.location, &new.location);
+        let spouse_id = Patch::of_options(&old.spouse_id, &new.spouse_id);
+        PersonPatch{ name, location, spouse_id }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
 
     #[test]
-    pub fn test_person_patch1() {
+    pub fn test_serde1() {
         let person = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Null);
         let json_ref = r#"{"name":"Hans","spouseId":null}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
-    pub fn test_person_patch2() {
+    pub fn test_serde2() {
         let person = PersonPatch::new(None, Patch::Value("Here"), Patch::Value(123));
         let json_ref = r#"{"location":"Here","spouseId":123}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
-    pub fn test_person_patch3() {
+    pub fn test_serde3() {
         let person = PersonPatch::new(None, Patch::Null, Patch::Absent);
         let json_ref = r#"{"location":null}"#;
         serde_and_verify(&person, json_ref);
+    }
+
+    #[test]
+    pub fn test_of1() {
+        let old = PersonData::new("Hans", None, None);
+        let new = PersonData::new("Inge", Some("here"), None);
+        let cmp = PersonPatch::new(Some("Inge"), Patch::Value("here"), Patch::Absent);
+        assert_eq!(PersonPatch::of(&old, &new), cmp);
+    }
+
+    #[test]
+    pub fn test_of2() {
+        let old = PersonData::new("Hans", Some("here"), Some(123));
+        let new = PersonData::new("Hans", None, None);
+        let cmp = PersonPatch::new(None, Patch::Null, Patch::Null);
+        assert_eq!(PersonPatch::of(&old, &new), cmp);
     }
 
     fn serde_and_verify(person_ref: &PersonPatch, json_ref: &str) {
