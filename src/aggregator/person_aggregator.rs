@@ -44,9 +44,7 @@ impl PersonAggregator {
         let tx = self.conn.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
-                // TODO: update() should return insertion result
-                PersonTable::update(&tx, person_id, &patch)?;
-                let after = PersonTable::select_by_id(&tx, person_id)?.unwrap();
+                let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
                 // Create and write events and their revisions
                 let event = PersonEventBuilder::for_update(person_id, &patch);
                 Self::write_person_event_and_revision(&tx, event)?;

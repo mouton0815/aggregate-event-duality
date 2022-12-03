@@ -60,7 +60,7 @@ impl PersonTable {
         Ok(tx.last_insert_rowid() as u32)
     }
 
-    pub fn update(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<bool> {
+    pub fn update(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<Option<PersonData>> {
         let mut columns = Vec::new();
         let mut values: Vec<&dyn ToSql> = Vec::new();
         if !person.name.is_none() {
@@ -83,7 +83,11 @@ impl PersonTable {
         values.push(&person_id);
         debug!("Execute\n{}\nwith: {:?}", query, person);
         let row_count = tx.execute(query.as_str(), values.as_slice())?;
-        Ok(row_count == 1)
+        if row_count == 1 {
+            Self::select_by_id(&tx, person_id)
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn delete(tx: &Transaction, person_id: u32) -> Result<bool> {
@@ -167,16 +171,19 @@ mod tests {
     fn test_update() {
         let person = PersonData::new("Hans", Some("Germany"), Some(123));
         let person_update = PersonPatch::new(None, Patch::Null, Patch::Value(100));
+        let person_ref = PersonData::new("Hans", None, Some(100));
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
         assert!(PersonTable::insert(&tx, &person).is_ok());
         let result = PersonTable::update(&tx, 1, &person_update);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), true);
+        let result = result.as_ref().unwrap().as_ref();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), &person_ref);
         assert!(tx.commit().is_ok());
 
-        let ref_persons = [(1, &PersonData::new("Hans", None, Some(100)))];
+        let ref_persons = [(1, &person_ref)];
         check_results(&mut conn, &ref_persons);
         check_single_result(&mut conn, ref_persons[0]);
     }
@@ -189,7 +196,7 @@ mod tests {
         let tx = conn.transaction().unwrap();
         let result = PersonTable::update(&tx, 1, &person_update);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), false);
+        assert_eq!(result.unwrap(), None);
     }
 
     #[test]
