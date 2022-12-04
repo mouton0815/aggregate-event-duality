@@ -30,8 +30,8 @@ impl PersonPatch {
 
     pub fn of(old: &PersonData, new: &PersonData) -> Self {
         let name = if old.name == new.name { None } else { Some(new.name.clone()) };
-        let location = Patch::of_options(&old.location, &new.location);
-        let spouse_id = Patch::of_options(&old.spouse_id, &new.spouse_id);
+        let location = Patch::of(&old.location, &new.location);
+        let spouse_id = Patch::of(&old.spouse_id, &new.spouse_id);
         PersonPatch{ name, location, spouse_id }
     }
 
