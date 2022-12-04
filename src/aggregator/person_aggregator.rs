@@ -46,7 +46,7 @@ impl PersonAggregator {
             Some(before) => {
                 let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
                 // Create and write events and their revisions
-                let event = PersonEventBuilder::for_update(person_id, &patch);
+                let event = PersonEventBuilder::for_update(person_id, &before, &after);
                 Self::write_person_event_and_revision(&tx, event)?;
                 let is_last = Self::is_last_location(&tx, &before)?;
                 let event = LocationEventBuilder::for_update(person_id, &before, &after, is_last);
@@ -128,9 +128,11 @@ impl PersonAggregator {
         }
     }
 
-    fn write_person_event_and_revision(tx: &Transaction, event: String) -> Result<(), rusqlite::Error> {
-        let revision = PersonEventTable::insert(&tx, event.as_str())?;
-        RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
+    fn write_person_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
+        if event.is_some() {
+            let revision = PersonEventTable::insert(&tx, event.unwrap().as_str())?;
+            RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
+        }
         Ok(())
     }
 
@@ -240,6 +242,26 @@ mod tests {
     }
 
     #[test]
+    pub fn test_update_events_no_change() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let patch = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Absent);
+        assert!(aggregator.insert(&person).is_ok());
+        assert!(aggregator.update(1, &patch).is_ok());
+
+        let events_ref = [
+            r#"{"1":{"name":"Hans","location":"Here"}}"# // No update event because nothing was changed
+        ];
+        check_person_events(&mut aggregator, &events_ref);
+
+        let events_ref = [
+            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"# // Ditto
+        ];
+        check_location_events(&mut aggregator, &events_ref);
+    }
+
+    #[test]
     pub fn test_update_events_set_location() {
         let mut aggregator = create_aggregator();
 
@@ -250,7 +272,7 @@ mod tests {
 
         let events_ref = [
             r#"{"1":{"name":"Hans"}}"#,
-            r#"{"1":{"name":"Hans","location":"Here","spouseId":123}}"#
+            r#"{"1":{"location":"Here","spouseId":123}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
@@ -271,7 +293,7 @@ mod tests {
 
         let events_ref = [
             r#"{"1":{"name":"Hans"}}"#,
-            r#"{"1":{"name":"Hans","spouseId":123}}"#
+            r#"{"1":{"spouseId":123}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
@@ -284,18 +306,19 @@ mod tests {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", Some("Here"), None);
-        let patch = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Absent);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Absent, Patch::Absent);
         assert!(aggregator.insert(&person).is_ok());
         assert!(aggregator.update(1, &patch).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
-            r#"{"1":{"name":"Hans"}}"#
+            r#"{"1":{"name":"Inge"}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
         let events_ref = [
-            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#
+            r#"{"Here":{"1":{"name":"Hans","location":"Here"}}}"#,
+            r#"{"Here":{"1":{"name":"Inge"}}}"#
         ];
         check_location_events(&mut aggregator, &events_ref);
     }
@@ -311,7 +334,7 @@ mod tests {
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
-            r#"{"1":{"name":"Hans","location":"Here","spouseId":123}}"#
+            r#"{"1":{"spouseId":123}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
@@ -328,15 +351,15 @@ mod tests {
 
         let person1 = PersonData::new("Hans", Some("Here"), None);
         let person2 = PersonData::new("Inge", Some("Here"), None);
-        let patch = PersonPatch::new(Some("Hans"), Patch::Value("There"), Patch::Absent);
+        let patch1 = PersonPatch::new(Some("Hans"), Patch::Value("There"), Patch::Absent);
         assert!(aggregator.insert(&person1).is_ok());
         assert!(aggregator.insert(&person2).is_ok());
-        assert!(aggregator.update(1, &patch).is_ok());
+        assert!(aggregator.update(1, &patch1).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
             r#"{"2":{"name":"Inge","location":"Here"}}"#,
-            r#"{"1":{"name":"Hans","location":"There"}}"#
+            r#"{"1":{"location":"There"}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
@@ -359,7 +382,7 @@ mod tests {
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
-            r#"{"1":{"name":"Hans","location":"There"}}"#
+            r#"{"1":{"location":"There"}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
@@ -376,15 +399,15 @@ mod tests {
 
         let person1 = PersonData::new("Hans", Some("Here"), None);
         let person2 = PersonData::new("Fred", Some("Here"), None);
-        let patch = PersonPatch::new(Some("Hans"), Patch::Null, Patch::Absent);
+        let patch1 = PersonPatch::new(Some("Hans"), Patch::Null, Patch::Absent);
         assert!(aggregator.insert(&person1).is_ok());
         assert!(aggregator.insert(&person2).is_ok());
-        assert!(aggregator.update(1, &patch).is_ok());
+        assert!(aggregator.update(1, &patch1).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
             r#"{"2":{"name":"Fred","location":"Here"}}"#,
-            r#"{"1":{"name":"Hans","location":null}}"#
+            r#"{"1":{"location":null}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
@@ -407,7 +430,7 @@ mod tests {
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
-            r#"{"1":{"name":"Hans","location":null}}"#
+            r#"{"1":{"location":null}}"#
         ];
         check_person_events(&mut aggregator, &events_ref);
 
