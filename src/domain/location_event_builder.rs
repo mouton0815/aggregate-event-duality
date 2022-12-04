@@ -24,15 +24,21 @@ impl LocationEventBuilder {
         } else if old_location.is_none() && new_location.is_some() {
             // Update sets a location
             Self::stringify(LocationEvent::for_insert_person(new_location.unwrap(), person_id, after))
+        } else if new_location.is_none() && is_last_in_aggregate {
+            // Update clears the location (this was the last person in old_location)
+            Self::stringify(LocationEvent::for_delete_location(old_location.unwrap()))
         } else if new_location.is_none() {
-            // Update clears the location
-            Self::stringify(LocationEvent::for_delete_person(old_location.unwrap(), person_id, is_last_in_aggregate))
+            // Update clears the location (but there are further persons in old_location)
+            Self::stringify(LocationEvent::for_delete_person(old_location.unwrap(), person_id))
         } else if new_location.is_none() || new_location.is_some() && old_location.unwrap() == new_location.unwrap() {
             // Update keeps the location
             Self::stringify(LocationEvent::for_update_person(old_location.unwrap(), person_id, &patch))
+        } else if is_last_in_aggregate {
+            // Update changes the location (and the person is the last one is the old_location)
+            Self::stringify(LocationEvent::for_move_person_and_delete_location(old_location.unwrap(), new_location.unwrap(), person_id, after,))
         } else {
-            // Update changes the location
-            Self::stringify(LocationEvent::for_move_person(old_location.unwrap(), new_location.unwrap(), person_id, after, is_last_in_aggregate))
+            // Update changes the location (but there are further persons in old_location)
+            Self::stringify(LocationEvent::for_move_person(old_location.unwrap(), new_location.unwrap(), person_id, after))
         }
     }
 
@@ -40,8 +46,10 @@ impl LocationEventBuilder {
         let location = person.location.as_ref();
         if location.is_none() {
             None
+        } else if is_last_in_aggregate {
+            Self::stringify(LocationEvent::for_delete_location(location.unwrap()))
         } else {
-            Self::stringify(LocationEvent::for_delete_person(location.unwrap(), person_id, is_last_in_aggregate))
+            Self::stringify(LocationEvent::for_delete_person(location.unwrap(), person_id))
         }
     }
 
