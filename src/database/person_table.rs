@@ -33,13 +33,13 @@ const SELECT_PERSONS : &'static str = formatcp!(
     PERSON_TABLE
 );
 
-const COUNT_PERSONS_WITH_LOCATION: &'static str = formatcp!(
-    "SELECT COUNT(personId) FROM {} WHERE location = ?",
+const SELECT_PERSON : &'static str = formatcp!(
+    "SELECT personId, name, location, spouseId FROM {} WHERE personId = ?",
     PERSON_TABLE
 );
 
-const SELECT_PERSON : &'static str = formatcp!(
-    "SELECT personId, name, location, spouseId FROM {} WHERE personId = ?",
+const EXISTS_LOCATION: &'static str = formatcp!(
+    "SELECT 1 FROM {} WHERE location = ?",
     PERSON_TABLE
 );
 
@@ -118,12 +118,11 @@ impl PersonTable {
         }).optional()
     }
 
-    pub fn count_by_location(tx: &Transaction, location: &str) -> Result<usize> {
-        debug!("Execute\n{} with {}", COUNT_PERSONS_WITH_LOCATION, location);
-        let mut stmt = tx.prepare(COUNT_PERSONS_WITH_LOCATION)?;
-        stmt.query_row([location], |row | {
-            row.get(0)
-        })
+    pub fn exists_location(tx: &Transaction, location: &str) -> Result<bool> {
+        debug!("Execute\n{} with {}", EXISTS_LOCATION, location);
+        let mut stmt = tx.prepare(EXISTS_LOCATION)?;
+        let mut rows = stmt.query([location])?;
+        match rows.next()? { Some(_) => Ok(true), None => Ok(false) }
     }
 
     fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
@@ -234,9 +233,9 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let result = PersonTable::count_by_location(&tx, "Spain");
+        let result = PersonTable::exists_location(&tx, "Spain");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0);
+        assert_eq!(result.unwrap(), false);
     }
 
     #[test]
@@ -253,9 +252,9 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let result = PersonTable::count_by_location(&tx, "Spain");
+        let result = PersonTable::exists_location(&tx, "Spain");
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2);
+        assert_eq!(result.unwrap(), true);
     }
 
     fn create_connection_and_table() -> Connection {

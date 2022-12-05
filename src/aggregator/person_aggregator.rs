@@ -18,13 +18,13 @@ pub struct PersonAggregator {
 }
 
 impl PersonAggregator {
-    pub fn new(db_path: &str) -> Result<PersonAggregator, Box<dyn Error>> {
+    pub fn new(db_path: &str) -> Result<Self, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
         PersonTable::create_table(&conn)?;
         PersonEventTable::create_table(&conn)?;
         LocationEventTable::create_table(&conn)?;
         RevisionTable::create_table(&conn)?;
-        Ok(PersonAggregator { conn })
+        Ok(Self{ conn })
     }
 
     pub fn insert<'a>(&mut self, person: &'a PersonData) -> Result<(u32, &'a PersonData), Box<dyn Error>> {
@@ -123,7 +123,7 @@ impl PersonAggregator {
 
     fn is_last_location(tx: &Transaction, person: &PersonData) -> Result<bool, rusqlite::Error> {
         match person.location.as_ref() {
-            Some(location) => Ok(PersonTable::count_by_location(tx, location)? == 0),
+            Some(location) => Ok(!PersonTable::exists_location(tx, location)?),
             None => Ok(false)
         }
     }
