@@ -11,13 +11,29 @@ pub enum Patch<T> {
 
 impl<T> Patch<T> {
 
+    ///
+    /// Creates a ```Patch```object from an ```Option``` with a cloneable value.
+    /// In contrast to the ```From``` trait, this constructor allows controlling the interpretation of ```None```.
+    ///
+    pub fn of_option(opt: &Option<T>, none_as_null: bool) -> Self where T: Clone {
+        match opt {
+            Some(v) => Self::Value(v.clone()),
+            None => if none_as_null {
+                Self::Null
+            } else {
+                Self::Absent
+            }
+        }
+    }
+
+    ///
     /// Computes a patch between two options "old" and "new". The result is
     /// * ```Patch::Absent``` if "new" is equal to "old"
     /// * ```Patch::Null``` if "old" contains a value but "new" does not
     /// * ```Patch::Value(new.unwrap())``` if "new" contains a value but "old" does not,
     /// or if both have different values
     ///
-    pub fn of(old: &Option<T>, new: &Option<T>) -> Self where T: Clone + PartialEq {
+    pub fn of_options(old: &Option<T>, new: &Option<T>) -> Self where T: Clone + PartialEq {
         if old == new {
             Patch::Absent
         } else if old.is_some() && new.is_none() {
@@ -133,32 +149,50 @@ mod tests {
     }
 
     #[test]
-    pub fn test_of_none_none() {
-        let t : Patch<usize> = Patch::of(&None, &None);
+    pub fn test_of_option_none_as_absent() {
+        let t : Patch<usize> = Patch::of_option(&None, false);
         assert_eq!(t, Patch::Absent);
     }
 
     #[test]
-    pub fn test_of_none_some() {
-        let t = Patch::of(&None, &Some("foo"));
-        assert_eq!(t, Patch::Value("foo"));
-    }
-
-    #[test]
-    pub fn test_of_some_none() {
-        let t = Patch::of(&Some("foo"), &None);
+    pub fn test_of_option_none_as_null() {
+        let t : Patch<usize> = Patch::of_option(&None, true);
         assert_eq!(t, Patch::Null);
     }
 
     #[test]
-    pub fn test_of_equal() {
-        let t = Patch::of(&Some("foo"), &Some("foo"));
+    pub fn test_of_option_value() {
+        let t = Patch::of_option(&Some("foo"), true);
+        assert_eq!(t, Patch::Value("foo"));
+    }
+
+    #[test]
+    pub fn test_of_options_none_none() {
+        let t : Patch<usize> = Patch::of_options(&None, &None);
         assert_eq!(t, Patch::Absent);
     }
 
     #[test]
-    pub fn test_of_differ() {
-        let t = Patch::of(&Some("foo"), &Some("bar"));
+    pub fn test_of_options_none_some() {
+        let t = Patch::of_options(&None, &Some("foo"));
+        assert_eq!(t, Patch::Value("foo"));
+    }
+
+    #[test]
+    pub fn test_of_options_some_none() {
+        let t = Patch::of_options(&Some("foo"), &None);
+        assert_eq!(t, Patch::Null);
+    }
+
+    #[test]
+    pub fn test_of_options_equal() {
+        let t = Patch::of_options(&Some("foo"), &Some("foo"));
+        assert_eq!(t, Patch::Absent);
+    }
+
+    #[test]
+    pub fn test_of_options_differ() {
+        let t = Patch::of_options(&Some("foo"), &Some("bar"));
         assert_eq!(t, Patch::Value("bar"));
     }
 

@@ -20,14 +20,8 @@ impl PersonEvent {
     pub fn for_insert(person_id: u32, person: &PersonData) -> Self {
         Self::new(person_id, Some(PersonPatch {
             name: Some(person.name.clone()),
-            location: match &person.location {
-                Some(x) => Patch::Value(x.clone()),
-                None => Patch::Absent
-            },
-            spouse_id: match person.spouse_id {
-                Some(x) => Patch::Value(x),
-                None => Patch::Absent
-            }
+            location: Patch::of_option(&person.location, false),
+            spouse_id: Patch::of_option(&person.spouse_id, false)
         }))
     }
 
