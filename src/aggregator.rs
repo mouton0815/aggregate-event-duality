@@ -1,4 +1,3 @@
-// TODO: Rename to aggregator.js
 use std::error::Error;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
@@ -13,11 +12,11 @@ use crate::domain::person_event_builder::PersonEventBuilder;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 
-pub struct PersonAggregator {
+pub struct Aggregator {
     conn: Connection
 }
 
-impl PersonAggregator {
+impl Aggregator {
     pub fn new(db_path: &str) -> Result<Self, Box<dyn Error>> {
         let conn = Connection::open(db_path)?;
         PersonTable::create_table(&conn)?;
@@ -148,7 +147,7 @@ impl PersonAggregator {
 #[cfg(test)]
 mod tests {
     use std::error::Error;
-    use crate::aggregator::person_aggregator::PersonAggregator;
+    use crate::aggregator::Aggregator;
     use crate::database::revision_table::{RevisionTable, RevisionType};
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
@@ -549,13 +548,13 @@ mod tests {
     // Helper functions for test
     //
 
-    fn create_aggregator() -> PersonAggregator {
-        let aggregator = PersonAggregator::new(":memory:");
+    fn create_aggregator() -> Aggregator {
+        let aggregator = Aggregator::new(":memory:");
         assert!(aggregator.is_ok());
         aggregator.unwrap()
     }
 
-    fn get_person_events_and_compare(aggregator: &mut PersonAggregator, from_revision: u32, ref_events: &[&str]) {
+    fn get_person_events_and_compare(aggregator: &mut Aggregator, from_revision: u32, ref_events: &[&str]) {
         let events = aggregator.get_person_events(from_revision);
         assert!(events.is_ok());
         let events = events.unwrap();
@@ -565,19 +564,19 @@ mod tests {
         }
     }
 
-    fn check_person_events(aggregator: &mut PersonAggregator, events_ref: &[&str]) {
+    fn check_person_events(aggregator: &mut Aggregator, events_ref: &[&str]) {
         check_revision(aggregator, RevisionType::PERSON, events_ref.len());
         let events = aggregator.get_person_events(0);
         check_events(events, events_ref);
     }
 
-    fn check_location_events(aggregator: &mut PersonAggregator, events_ref: &[&str]) {
+    fn check_location_events(aggregator: &mut Aggregator, events_ref: &[&str]) {
         check_revision(aggregator, RevisionType::LOCATION, events_ref.len());
         let events = aggregator.get_location_events(0);
         check_events(events, events_ref);
     }
 
-    fn check_revision(aggregator: &mut PersonAggregator, revision_type: RevisionType, revision_ref: usize) {
+    fn check_revision(aggregator: &mut Aggregator, revision_type: RevisionType, revision_ref: usize) {
         let tx = aggregator.conn.transaction().unwrap();
         let revision = RevisionTable::read(&tx, revision_type);
         assert!(tx.commit().is_ok());

@@ -7,13 +7,13 @@ use futures_util::StreamExt;
 use warp::http::StatusCode;
 use warp::{reply, Reply, sse};
 use warp::sse::Event;
-use crate::aggregator::person_aggregator::PersonAggregator;
+use crate::aggregator::Aggregator;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
 
 
-pub type MutexedAggregator = Arc<Mutex<PersonAggregator>>;
+pub type MutexedAggregator = Arc<Mutex<Aggregator>>;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 struct ErrorResult {
