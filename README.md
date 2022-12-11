@@ -4,17 +4,28 @@ This project demonstrates how a service can provide both aggregates and their co
 
 An _aggregate_ is a JSON document that contains hierarchical data, covering a certain domain.
 An example aggregate may contain the data of all persons in a town or company.
-Another - derived - aggregate may provide a grouping of all bespoken persons by the locations they live or work in.
+Another aggregate may provide a grouping of all bespoken persons by the locations they live or work in.
+Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 
-(TODO: Example aggregates (table))
+| #   | Input operation                                              | Resulting person aggregate                                                                   |
+|-----|--------------------------------------------------------------|----------------------------------------------------------------------------------------------|
+| 1   | <pre>POST /persons {"name":"Hans","location":"Berlin"}</pre> | <pre>{"1":{"name":"Hans","location":"Berlin"}}</pre>                                         |
+| 2   | <pre>POST /persons {"name":"Inge","location":"Munich"}</pre> | <pre>{"1":{"name":"Hans","location":"Berlin"},"2":{"name":"Inge","location":"Munich"}}</pre> |
+| 3   | <pre>PATCH /persons/1 {"location":null}</pre>                | <pre>{"1":{"name":"Hans"},"2":{"name":"Inge","location":"Munich"}}</pre>                     |
+| 4   | <pre>DELETE /persons/1</pre>                                 | <pre>{"2":{"name":"Inge","location":"Munich"}}</pre>                                         |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.
 The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386)
 (not to be confused with [JSON Patch](https://jsonpatch.com)).
 
-(TODO: Example patch events (table))
+| #   | Input operation                                              | Resulting JSON Merge Patch events                    |
+|-----|--------------------------------------------------------------|------------------------------------------------------|
+| 1   | <pre>POST /persons {"name":"Hans","location":"Berlin"}</pre> | <pre>{"1":{"name":"Hans","location":"Berlin"}}</pre> |
+| 2   | <pre>POST /persons {"name":"Inge","location":"Munich"}</pre> | <pre>{"2":{"name":"Inge","location":"Munich"}}</pre> |
+| 3   | <pre>PATCH /persons/1 {"location":null}</pre>                | <pre>{"1":{"location":null}}</pre>                   |
+| 4   | <pre>DELETE /persons/1</pre>                                 | <pre>{"1":null}</pre>                                |
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
@@ -26,7 +37,7 @@ The approach chosen in this project utilizes [Server-Sent Events](https://develo
 as a yet simpler solution. No shared infrastructure is required; both aggregates and events are delivered over HTTP,
 although through different server endpoints.
 
-(TODO: Figure with different endpoints)
+![Aggregate-and-Event Server with two endpoints](architecture.png)
  
 The separation into two steps, bootstrapping and event consumption, requires synchronisation:
 The consumer must receive change events in order. Moreover, it must not miss change events for the previously
