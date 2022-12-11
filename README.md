@@ -8,24 +8,24 @@ Another aggregate may provide a grouping of all bespoken persons by the location
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 
-| #   | Input operation                                              | Resulting person aggregate                                                                   |
-|-----|--------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| 1   | <pre>POST /persons {"name":"Hans","location":"Berlin"}</pre> | <pre>{"1":{"name":"Hans","location":"Berlin"}}</pre>                                         |
-| 2   | <pre>POST /persons {"name":"Inge","location":"Munich"}</pre> | <pre>{"1":{"name":"Hans","location":"Berlin"},"2":{"name":"Inge","location":"Munich"}}</pre> |
-| 3   | <pre>PATCH /persons/1 {"location":null}</pre>                | <pre>{"1":{"name":"Hans"},"2":{"name":"Inge","location":"Munich"}}</pre>                     |
-| 4   | <pre>DELETE /persons/1</pre>                                 | <pre>{"2":{"name":"Inge","location":"Munich"}}</pre>                                         |
+| #   | Input operation                                       | Resulting person aggregate                                        |
+|-----|-------------------------------------------------------|-------------------------------------------------------------------|
+| 1   | ``POST /persons {"name":"Hans","location":"Berlin"}`` | ``{"1":{"name":"Hans","location":"Berlin"}}``                     |
+| 2   | ``POST /persons {"name":"Inge"}``                     | ``{"1":{"name":"Hans","location":"Berlin"},"2":{"name":"Inge"}}`` |
+| 3   | ``PATCH /persons/1 {"location":null}``                | ``{"1":{"name":"Hans"},"2":{"name":"Inge"}}``                     |
+| 4   | ``DELETE /persons/1``                                 | ``{"2":{"name":"Inge"}}``                     |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.
 The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386)
 (not to be confused with [JSON Patch](https://jsonpatch.com)).
 
-| #   | Input operation                                              | Resulting JSON Merge Patch events                    |
-|-----|--------------------------------------------------------------|------------------------------------------------------|
-| 1   | <pre>POST /persons {"name":"Hans","location":"Berlin"}</pre> | <pre>{"1":{"name":"Hans","location":"Berlin"}}</pre> |
-| 2   | <pre>POST /persons {"name":"Inge","location":"Munich"}</pre> | <pre>{"2":{"name":"Inge","location":"Munich"}}</pre> |
-| 3   | <pre>PATCH /persons/1 {"location":null}</pre>                | <pre>{"1":{"location":null}}</pre>                   |
-| 4   | <pre>DELETE /persons/1</pre>                                 | <pre>{"1":null}</pre>                                |
+| #   | Input operation                                       | Resulting JSON Merge Patch event              |
+|-----|-------------------------------------------------------|-----------------------------------------------|
+| 1   | ``POST /persons {"name":"Hans","location":"Berlin"}`` | ``{"1":{"name":"Hans","location":"Berlin"}}`` |
+| 2   | ``POST /persons {"name":"Inge"}``                     | ``{"2":{"name":"Inge"}}``                     |
+| 3   | ``PATCH /persons/1 {"location":null}``                | ``{"1":{"location":null}}``                   |
+| 4   | ``DELETE /persons/1``                                 | ``{"1":null}``                                |
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
@@ -88,7 +88,7 @@ RUST_LOG=info cargo run
 ```
 Note that the server uses an in-memory [SQLite](https://www.sqlite.org/index.html) database,
 so the aggregates are lost on restart of the server. This can be changed by replacing the ``":memory:``
-argument of the ``Aggregator`` constructor in [server.rs](src/bin/server) by a path to a database file,
+argument of the ``Aggregator`` constructor in [server.rs](src/bin/server.rs) by a path to a database file,
 for example ``"database.db"``.
 
 (TODO: Start the node.js example consumer)
@@ -99,7 +99,7 @@ you need to create/update/delete persons via the REST endpoint of the server.
 Example requests:
 ```shell
 curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Hans","location":"Berlin"}' http://localhost:3000/persons
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Inge","location":"Munich"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Inge"}' http://localhost:3000/persons
 curl -X PATCH -H 'Content-Type: application/json' -d '{"location":null}' http://localhost:3000/persons/1
 curl -X DELETE http://localhost:3000/persons/1
 ```
