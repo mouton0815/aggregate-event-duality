@@ -44,13 +44,14 @@ The consumer must receive change events in order. Moreover, it must not miss cha
 loaded aggregate. The challenge here is on server side. The server must store the aggregate and publish
 the corresponding change event in an atomic operation.
 
-(TODO: Figure with outbox pattern)
-
 Atomicity can be guaranteed with the [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html)
-pattern, which persists aggregate and event in one transaction. A message relay periodically publishes new events
-and drops older ones. On failure, events may be published repeatedly.
+pattern, which persists the aggregate and the corresponding event in one transaction.
+A message relay periodically publishes new events and drops older ones.
+On failure, events may be published repeatedly.
 Therefore, events must be [idempotent](https://en.wikipedia.org/wiki/Idempotence).
-This is true for the JSON Merge Patch protocol.
+This holds for the JSON Merge Patch protocol.
+
+![Transactional Outbox pattern](outbox-pattern.png)
 
 To match aggregate state and event, another table stores the latest _revision_ of the aggregate.
 Every event in the outbox event table is annotated with the aggregate revision.
