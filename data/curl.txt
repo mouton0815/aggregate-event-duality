@@ -1,6 +1,0 @@
-curl -X POST -H "Content-Type: application/json" -d "@data/person_hans_post.json" http://localhost:3000/persons
-curl -X PATCH -H "Content-Type: application/json" -d "@data/person_hans_patch.json" http://localhost:3000/persons/1
-curl -X DELETE http://localhost:3000/persons/1
-
-curl http://localhost:3000/persons
-curl -N -H "X-From-Revision: 1" http://localhost:3000/person-events
