@@ -10,3 +10,4 @@
 [X] Move event writing to different files
 [X] Rename src/aggregator/person_aggregator.rs -> src/aggregator.rs
 [ ] Scheduler for event deletion
+[ ] Node.js consumer

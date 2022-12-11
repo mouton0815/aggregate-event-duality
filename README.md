@@ -50,7 +50,7 @@ Atomicity can be guaranteed with the [Transactional Outbox](https://microservice
 pattern, which persists aggregate and event in one transaction. A message relay periodically publishes new events
 and drops older ones. On failure, events may be published repeatedly.
 Therefore, events must be [idempotent](https://en.wikipedia.org/wiki/Idempotence).
-This is true for the JSON Merge Patch protocol (TODO: Proof?)
+This is true for the JSON Merge Patch protocol.
 
 To match aggregate state and event, another table stores the latest _revision_ of the aggregate.
 Every event in the outbox event table is annotated with the aggregate revision.
@@ -88,7 +88,7 @@ RUST_LOG=info cargo run
 ```
 Note that the server uses an in-memory [SQLite](https://www.sqlite.org/index.html) database,
 so the aggregates are lost on restart of the server. This can be changed by replacing the ``":memory:``
-argument of the ``Aggregator`` constructor in [application.rs](src/bin/application.rs) by a path to a database file,
+argument of the ``Aggregator`` constructor in [server.rs](src/bin/server) by a path to a database file,
 for example ``"database.db"``.
 
 (TODO: Start the node.js example consumer)
@@ -100,7 +100,6 @@ Example requests:
 ```shell
 curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Hans","location":"Berlin"}' http://localhost:3000/persons
 curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Inge","location":"Munich"}' http://localhost:3000/persons
-curl -X PATCH -H 'Content-Type: application/json' -d '{"location":"Berlin"}' http://localhost:3000/persons/2
 curl -X PATCH -H 'Content-Type: application/json' -d '{"location":null}' http://localhost:3000/persons/1
 curl -X DELETE http://localhost:3000/persons/1
 ```
