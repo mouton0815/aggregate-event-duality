@@ -18,8 +18,7 @@ const CREATE_PERSON_TABLE : &'static str = formatcp!(
 );
 
 const INSERT_PERSON : &'static str = formatcp!(
-    "INSERT INTO {} (name, location, spouseId) VALUES (?, ?, ?)
-    ON CONFLICT DO NOTHING",
+    "INSERT INTO {} (name, location, spouseId) VALUES (?, ?, ?)",
     PERSON_TABLE
 );
 
