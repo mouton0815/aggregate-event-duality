@@ -1,4 +1,5 @@
 use std::error::Error;
+use chrono::Utc;
 use log::{info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
@@ -129,7 +130,7 @@ impl Aggregator {
 
     fn write_person_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
         if event.is_some() {
-            let revision = PersonEventTable::insert(&tx, event.unwrap().as_str())?;
+            let revision = PersonEventTable::insert(&tx, &Utc::now(), event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
         }
         Ok(())
@@ -137,7 +138,7 @@ impl Aggregator {
 
     fn write_location_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
         if event.is_some() {
-            let revision = LocationEventTable::insert(&tx, event.unwrap().as_str())?;
+            let revision = LocationEventTable::insert(&tx, &Utc::now(), event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
         }
         Ok(())
