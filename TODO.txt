@@ -15,3 +15,7 @@
 [X] Remove ON CONFLICT from person table as conflicts cannot happen
 [ ] Remove location stuff - this means:
     [ ] Simplify event_table.js
+[ ] Rename project to [rust-]stream-table-duality
+[ ] Create "TransactionFacade" that wraps the aggregator
+[ ] Rename server to processor? (if so, also change README.md incl figures)
+[ ] Move aggregator and scheduler to subdir again (but which?)

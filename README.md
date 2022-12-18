@@ -3,8 +3,8 @@
 This project demonstrates how a service can provide both aggregates and their corresponding change events.
 
 An _aggregate_ is a JSON document that contains hierarchical data, covering a certain domain.
-An example aggregate may contain the data of all persons in a town or company.
-Another aggregate may provide a grouping of all bespoken persons by the locations they live or work in.
+An example aggregate may contain the data of all persons in a company, university, or similar.
+Another aggregate may provide a grouping of all bespoken persons by their locations.
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 
@@ -13,7 +13,7 @@ Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 | 1   | ``POST /persons {"name":"Hans","location":"Berlin"}`` | ``{"1":{"name":"Hans","location":"Berlin"}}``                     |
 | 2   | ``POST /persons {"name":"Inge"}``                     | ``{"1":{"name":"Hans","location":"Berlin"},"2":{"name":"Inge"}}`` |
 | 3   | ``PATCH /persons/1 {"location":null}``                | ``{"1":{"name":"Hans"},"2":{"name":"Inge"}}``                     |
-| 4   | ``DELETE /persons/1``                                 | ``{"2":{"name":"Inge"}}``                     |
+| 4   | ``DELETE /persons/1``                                 | ``{"2":{"name":"Inge"}}``                                         |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.

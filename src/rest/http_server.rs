@@ -1,10 +1,13 @@
 use std::convert::Infallible;
-use log::info;
+use log::{debug, info};
+use tokio::sync::broadcast::Receiver;
+use tokio::task::JoinHandle;
 use warp::Filter;
-use crate::rest::rest_handlers::{MutexedAggregator, post_person, patch_person, get_person_events, delete_person, get_persons, get_locations, get_location_events};
+use crate::aggregator::MutexAggregator;
+use crate::rest::rest_handlers::{post_person, patch_person, get_person_events, delete_person, get_persons, get_locations, get_location_events};
 
-fn with_aggregator(aggregator: MutexedAggregator)
-    -> impl Filter<Extract = (MutexedAggregator,), Error = Infallible> + Clone {
+fn with_aggregator(aggregator: MutexAggregator)
+    -> impl Filter<Extract = (MutexAggregator,), Error = Infallible> + Clone {
     warp::any().map(move || aggregator.clone())
 }
 
@@ -13,7 +16,7 @@ fn with_constant<T:Send+Copy>(argument: T) -> impl Filter<Extract = (T,), Error 
     warp::any().map(move || argument)
 }
 
-pub async fn spawn_http_server(aggregator: MutexedAggregator, repeat_every_secs: u64) {
+pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, repeat_every_secs: u64) -> JoinHandle<()> {
     info!("Spawn HTTP server");
 
     let path_persons = "persons";
@@ -73,7 +76,11 @@ pub async fn spawn_http_server(aggregator: MutexedAggregator, repeat_every_secs:
         .or(route_get_locations)
         .or(route_get_location_events);
 
-    warp::serve(routes)
-        .run(([127, 0, 0, 1], 3000))
-        .await;
+    let (_, server) = warp::serve(routes)
+        .bind_with_graceful_shutdown(([127, 0, 0, 1], 3000), async move {
+            rx.recv().await.unwrap();
+            debug!("Termination signal received, leave HTTP server");
+        });
+
+    tokio::spawn(server)
 }

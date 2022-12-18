@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use log::debug;
 use rusqlite::{Connection, params, Result, Transaction};
 
@@ -25,12 +24,12 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
         Ok(())
     }
 
-    pub fn insert(tx: &Transaction, time: &DateTime<Utc>, event: &str) -> Result<u32> {
+    pub fn insert(tx: &Transaction, timestamp: u64, event: &str) -> Result<u32> {
         let stmt = format!(
             "INSERT INTO {} (time, event) VALUES (?,?)",
             Self::table_name(TABLE_TYPE));
-        debug!("Execute\n{}\nwith: {} and {}", stmt, time, event);
-        tx.execute(stmt.as_str(), params![time.timestamp(), event])?;
+        debug!("Execute\n{}\nwith: {} and {}", stmt, timestamp, event);
+        tx.execute(stmt.as_str(), params![timestamp, event])?;
         Ok(tx.last_insert_rowid() as u32)
     }
 
@@ -51,13 +50,12 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
         Ok(events)
     }
 
-    // TODO: Unit tests
-    fn delete_before(tx: &Transaction, time: &DateTime<Utc>) -> Result<usize> {
+    pub fn delete_before(tx: &Transaction, timestamp: u64) -> Result<usize> {
         let stmt = format!(
             "DELETE FROM {} WHERE time < ?",
             Self::table_name(TABLE_TYPE));
-        debug!("Execute\n{}\nwith: {}", stmt, time);
-        let row_count = tx.execute(stmt.as_str(), params![time.timestamp()])?;
+        debug!("Execute\n{}\nwith: {}", stmt, timestamp);
+        let row_count = tx.execute(stmt.as_str(), params![timestamp])?;
         Ok(row_count)
     }
 
@@ -75,7 +73,6 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{TimeZone, Utc};
     use rusqlite::Connection;
     use crate::database::event_table::PersonEventTable;
 
@@ -83,7 +80,7 @@ mod tests {
     fn test_insert() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let revision = PersonEventTable::insert(&tx, &Utc::now(), "foo");
+        let revision = PersonEventTable::insert(&tx, 0, "foo");
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), 1);
@@ -103,8 +100,8 @@ mod tests {
     fn test_read_from() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(PersonEventTable::insert(&tx, &Utc::now(), "foo").is_ok());
-        assert!(PersonEventTable::insert(&tx, &Utc::now(), "bar").is_ok());
+        assert!(PersonEventTable::insert(&tx, 1, "foo").is_ok());
+        assert!(PersonEventTable::insert(&tx, 2, "bar").is_ok());
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
@@ -120,14 +117,12 @@ mod tests {
     fn test_delete_before() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let dt = Utc.with_ymd_and_hms(2022, 12, 24, 0, 0, 0).unwrap();
-        assert!(PersonEventTable::insert(&tx, &dt, "foo").is_ok());
-        let dt = Utc.with_ymd_and_hms(2022, 12, 25, 0, 0, 0).unwrap();
-        assert!(PersonEventTable::insert(&tx, &dt, "bar").is_ok());
+        assert!(PersonEventTable::insert(&tx, 1, "foo").is_ok());
+        assert!(PersonEventTable::insert(&tx, 2, "bar").is_ok());
         assert!(tx.commit().is_ok());
 
         let tx = conn.transaction().unwrap();
-        let count = PersonEventTable::delete_before(&tx, &dt);
+        let count = PersonEventTable::delete_before(&tx, 2);
         assert!(tx.commit().is_ok());
         assert!(count.is_ok());
         assert_eq!(count.unwrap(), 1);

@@ -1,6 +1,7 @@
 use std::error::Error;
-use chrono::Utc;
-use log::{info, warn};
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+use log::{debug, info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_view::LocationView;
@@ -16,6 +17,8 @@ use crate::domain::person_patch::PersonPatch;
 pub struct Aggregator {
     conn: Connection
 }
+
+pub type MutexAggregator = Arc<Mutex<Aggregator>>;
 
 impl Aggregator {
     pub fn new(db_path: &str) -> Result<Self, Box<dyn Error>> {
@@ -117,6 +120,16 @@ impl Aggregator {
         Ok(events)
     }
 
+    // TODO: Unit test
+    pub fn delete_events_before(&mut self, timestamp: &SystemTime) -> Result<usize, Box<dyn Error>> {
+        let tx = self.conn.transaction()?;
+        let timestamp = timestamp.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let count = PersonEventTable::delete_before(&tx, timestamp)?;
+        tx.commit()?;
+        debug!("Deleted {} old events", count);
+        Ok(count)
+    }
+
     //
     // Private functions
     //
@@ -130,7 +143,8 @@ impl Aggregator {
 
     fn write_person_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
         if event.is_some() {
-            let revision = PersonEventTable::insert(&tx, &Utc::now(), event.unwrap().as_str())?;
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let revision = PersonEventTable::insert(&tx, timestamp, event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
         }
         Ok(())
@@ -138,7 +152,8 @@ impl Aggregator {
 
     fn write_location_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
         if event.is_some() {
-            let revision = LocationEventTable::insert(&tx, &Utc::now(), event.unwrap().as_str())?;
+            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let revision = LocationEventTable::insert(&tx, timestamp, event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
         }
         Ok(())
@@ -148,6 +163,8 @@ impl Aggregator {
 #[cfg(test)]
 mod tests {
     use std::error::Error;
+    use std::thread;
+    use std::time::{Duration, SystemTime};
     use crate::aggregator::Aggregator;
     use crate::database::revision_table::{RevisionTable, RevisionType};
     use crate::domain::person_data::PersonData;
@@ -543,6 +560,26 @@ mod tests {
         get_person_events_and_compare(&mut aggregator, 1, &[&event_ref1, &event_ref2]);
         get_person_events_and_compare(&mut aggregator, 2, &[&event_ref2]);
         get_person_events_and_compare(&mut aggregator, 3, &[]);
+    }
+
+    #[test]
+    pub fn test_delete_events_before() {
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", None, None);
+        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(5));
+        assert!(aggregator.insert(&person).is_ok());
+        thread::sleep(Duration::from_millis(1010)); // Need to sleep >1sec because of Unix time resolution
+        let timestamp = SystemTime::now();
+        thread::sleep(Duration::from_millis(10));
+        assert!(aggregator.update(1, &patch).is_ok());
+
+        let result = aggregator.delete_events_before(&timestamp);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+
+        let event_ref = r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":5}}"#;
+        get_person_events_and_compare(&mut aggregator, 0, &[&event_ref]);
     }
 
     //
