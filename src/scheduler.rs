@@ -1,16 +1,16 @@
 use log::{debug, info, warn};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
 use tokio::time;
 use crate::aggregator::MutexAggregator;
 
 // Function spawns worker and waits for end of execution
-async fn spawn_worker(aggregator: MutexAggregator, timestamp: SystemTime) -> bool {
+async fn spawn_worker(aggregator: MutexAggregator, period: Duration) -> bool {
     debug!("Spawn worker");
     let handle = tokio::spawn(async move {
         let mut aggregator = aggregator.lock().unwrap();
-        match aggregator.delete_events_before(&timestamp) {
+        match aggregator.delete_events(period) {
             Ok(_) => true,
             Err(e) => {
                 warn!("Deletion task failed {:?}", e);
@@ -39,7 +39,7 @@ async fn repeat(aggregator: &MutexAggregator, period: Duration, mut rx: Receiver
             }
         }
         let aggregator = aggregator.clone();
-        if !spawn_worker(aggregator, SystemTime::now() - period).await {
+        if !spawn_worker(aggregator, period).await {
             warn!("Worker returned error, leave scheduler");
             break;
         }

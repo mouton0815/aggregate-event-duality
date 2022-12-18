@@ -9,12 +9,13 @@
 [X] Fix location events on renaming
 [X] Move event writing to different files
 [X] Rename src/aggregator/person_aggregator.rs -> src/aggregator.rs
-[ ] Scheduler for event deletion
+[X] Scheduler for event deletion
 [ ] Node.js consumer
 [ ] Apply Patch changes to JsonTernary. Publish JsonTernary. Import JsonTernary instead of Patch (use type alias)
 [X] Remove ON CONFLICT from person table as conflicts cannot happen
 [ ] Remove location stuff - this means:
     [ ] Simplify event_table.js
+    [ ] Remove *many* tests in aggregator.js and friends
 [ ] Rename project to [rust-]stream-table-duality
 [ ] Create "TransactionFacade" that wraps the aggregator
 [ ] Rename server to processor? (if so, also change README.md incl figures)

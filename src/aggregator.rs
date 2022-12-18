@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
-use log::{debug, info, warn};
+use std::time::Duration;
+use log::{info, warn};
 use rusqlite::{Connection, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_view::LocationView;
@@ -13,47 +13,55 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event_builder::PersonEventBuilder;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
+use crate::util::seconds_timestamp::{SecondsTimestamp, UnixTimestamp};
 
 pub struct Aggregator {
-    conn: Connection
+    connection: Connection,
+    timestamp: Box<dyn SecondsTimestamp + Send>
 }
 
 pub type MutexAggregator = Arc<Mutex<Aggregator>>;
 
 impl Aggregator {
     pub fn new(db_path: &str) -> Result<Self, Box<dyn Error>> {
-        let conn = Connection::open(db_path)?;
-        PersonTable::create_table(&conn)?;
-        PersonEventTable::create_table(&conn)?;
-        LocationEventTable::create_table(&conn)?;
-        RevisionTable::create_table(&conn)?;
-        Ok(Self{ conn })
+        Self::new_internal(db_path, UnixTimestamp::new())
+    }
+
+    fn new_internal(db_path: &str, timestamp: Box<dyn SecondsTimestamp + Send>) -> Result<Self, Box<dyn Error>> {
+        let connection = Connection::open(db_path)?;
+        PersonTable::create_table(&connection)?;
+        PersonEventTable::create_table(&connection)?;
+        LocationEventTable::create_table(&connection)?;
+        RevisionTable::create_table(&connection)?;
+        Ok(Self{ connection, timestamp })
     }
 
     pub fn insert<'a>(&mut self, person: &'a PersonData) -> Result<(u32, &'a PersonData), Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         // Create and write events and their revisions
+        let timestamp = self.timestamp.get();
         let event = PersonEventBuilder::for_insert(person_id, &person);
-        Self::write_person_event_and_revision(&tx, event)?;
+        Self::write_person_event_and_revision(&tx, timestamp, event)?;
         let event = LocationEventBuilder::for_insert(person_id, &person);
-        Self::write_location_event_and_revision(&tx, event)?;
+        Self::write_location_event_and_revision(&tx, timestamp, event)?;
         tx.commit()?;
         info!("Created {:?}", person);
         Ok((person_id, person))
     }
 
     pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>, rusqlite::Error> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
                 let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
                 // Create and write events and their revisions
+                let timestamp = self.timestamp.get();
                 let event = PersonEventBuilder::for_update(person_id, &before, &after);
-                Self::write_person_event_and_revision(&tx, event)?;
+                Self::write_person_event_and_revision(&tx, timestamp, event)?;
                 let is_last = Self::is_last_location(&tx, &before)?;
                 let event = LocationEventBuilder::for_update(person_id, &before, &after, is_last);
-                Self::write_location_event_and_revision(&tx, event)?;
+                Self::write_location_event_and_revision(&tx, timestamp, event)?;
                 tx.commit()?;
                 info!("Updated {:?} from {:?}", before, patch);
                 Ok(Some(after))
@@ -67,16 +75,17 @@ impl Aggregator {
     }
 
     pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
                 PersonTable::delete(&tx, person_id)?;
                 // Create and write events and their revisions
+                let timestamp = self.timestamp.get();
                 let event = PersonEventBuilder::for_delete(person_id);
-                Self::write_person_event_and_revision(&tx, event)?;
+                Self::write_person_event_and_revision(&tx, timestamp, event)?;
                 let is_last = Self::is_last_location(&tx, &before)?;
                 let event = LocationEventBuilder::for_delete(person_id, &before, is_last);
-                Self::write_location_event_and_revision(&tx, event)?;
+                Self::write_location_event_and_revision(&tx, timestamp, event)?;
                 tx.commit()?;
                 info!("Deleted {:?}", before);
                 Ok(true)
@@ -90,7 +99,7 @@ impl Aggregator {
     }
 
     pub fn get_persons(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
         let persons = PersonTable::select_all(&tx)?;
         tx.commit()?;
@@ -98,7 +107,7 @@ impl Aggregator {
     }
 
     pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         let events = PersonEventTable::read(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
@@ -106,7 +115,7 @@ impl Aggregator {
 
     // TODO: Use streams (for all collection results)
     pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::LOCATION)?;
         let locations = LocationView::select_all(&tx)?;
         tx.commit()?;
@@ -114,19 +123,20 @@ impl Aggregator {
     }
 
     pub fn get_location_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
+        let tx = self.connection.transaction()?;
         let events = LocationEventTable::read(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
     }
 
-    // TODO: Unit test
-    pub fn delete_events_before(&mut self, timestamp: &SystemTime) -> Result<usize, Box<dyn Error>> {
-        let tx = self.conn.transaction()?;
-        let timestamp = timestamp.duration_since(UNIX_EPOCH).unwrap().as_secs();
+    pub fn delete_events(&mut self, created_before: Duration) -> Result<usize, Box<dyn Error>> {
+        let tx = self.connection.transaction()?;
+        let timestamp = self.timestamp.get() - created_before.as_secs();
         let count = PersonEventTable::delete_before(&tx, timestamp)?;
         tx.commit()?;
-        debug!("Deleted {} old events", count);
+        if count > 0 {
+            info!("Deleted {} outdated events", count);
+        }
         Ok(count)
     }
 
@@ -141,18 +151,16 @@ impl Aggregator {
         }
     }
 
-    fn write_person_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
+    fn write_person_event_and_revision(tx: &Transaction, timestamp: u64, event: Option<String>) -> Result<(), rusqlite::Error> {
         if event.is_some() {
-            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
             let revision = PersonEventTable::insert(&tx, timestamp, event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
         }
         Ok(())
     }
 
-    fn write_location_event_and_revision(tx: &Transaction, event: Option<String>) -> Result<(), rusqlite::Error> {
+    fn write_location_event_and_revision(tx: &Transaction, timestamp: u64, event: Option<String>) -> Result<(), rusqlite::Error> {
         if event.is_some() {
-            let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
             let revision = LocationEventTable::insert(&tx, timestamp, event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
         }
@@ -163,14 +171,14 @@ impl Aggregator {
 #[cfg(test)]
 mod tests {
     use std::error::Error;
-    use std::thread;
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
     use crate::aggregator::Aggregator;
     use crate::database::revision_table::{RevisionTable, RevisionType};
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
+    use crate::util::seconds_timestamp::tests::IncrementalTimestamp;
 
     //
     // Test insert/update/delete
@@ -563,22 +571,22 @@ mod tests {
     }
 
     #[test]
-    pub fn test_delete_events_before() {
+    pub fn test_delete_events() {
         let mut aggregator = create_aggregator();
 
-        let person = PersonData::new("Hans", None, None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(5));
-        assert!(aggregator.insert(&person).is_ok());
-        thread::sleep(Duration::from_millis(1010)); // Need to sleep >1sec because of Unix time resolution
-        let timestamp = SystemTime::now();
-        thread::sleep(Duration::from_millis(10));
+        let person1 = PersonData::new("Hans", None, None);
+        let person2 = PersonData::new("Inge", None, None);
+        let patch = PersonPatch::new(Some("Fred"), Patch::Value("Nowhere"), Patch::Value(5));
+        assert!(aggregator.insert(&person1).is_ok());
+        assert!(aggregator.insert(&person2).is_ok());
         assert!(aggregator.update(1, &patch).is_ok());
 
-        let result = aggregator.delete_events_before(&timestamp);
+        // IncrementalTimestamp is at 4 inside delete_events(); minus 1 yields 3; so it deletes the first and second event
+        let result = aggregator.delete_events(Duration::from_secs(1));
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 1);
+        assert_eq!(result.unwrap(), 2);
 
-        let event_ref = r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":5}}"#;
+        let event_ref = r#"{"1":{"name":"Fred","location":"Nowhere","spouseId":5}}"#;
         get_person_events_and_compare(&mut aggregator, 0, &[&event_ref]);
     }
 
@@ -587,7 +595,8 @@ mod tests {
     //
 
     fn create_aggregator() -> Aggregator {
-        let aggregator = Aggregator::new(":memory:");
+        let timestamp = IncrementalTimestamp::new();
+        let aggregator = Aggregator::new_internal(":memory:", timestamp);
         assert!(aggregator.is_ok());
         aggregator.unwrap()
     }
@@ -615,7 +624,7 @@ mod tests {
     }
 
     fn check_revision(aggregator: &mut Aggregator, revision_type: RevisionType, revision_ref: usize) {
-        let tx = aggregator.conn.transaction().unwrap();
+        let tx = aggregator.connection.transaction().unwrap();
         let revision = RevisionTable::read(&tx, revision_type);
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
