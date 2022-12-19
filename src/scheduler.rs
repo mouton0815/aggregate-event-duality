@@ -5,43 +5,22 @@ use tokio::task::JoinHandle;
 use tokio::time;
 use crate::aggregator::MutexAggregator;
 
-// Function spawns worker and waits for end of execution
-async fn spawn_worker(aggregator: MutexAggregator, period: Duration) -> bool {
-    debug!("Spawn worker");
-    let handle = tokio::spawn(async move {
-        let mut aggregator = aggregator.lock().unwrap();
-        match aggregator.delete_events(period) {
-            Ok(_) => true,
-            Err(e) => {
-                warn!("Deletion task failed {:?}", e);
-                false
-            }
-        }
-    });
-    match handle.await {
-        Ok(result) => result,
-        Err(e) => {
-            warn!("Spawning worker returned error {:?}", e);
-            false
-        }
-    }
-}
-
 // Must be async as required by tokio::select!
 async fn repeat(aggregator: &MutexAggregator, period: Duration, mut rx: Receiver<()>) {
     let mut interval = time::interval(period);
     loop {
         tokio::select! {
-            _ = interval.tick() => {},
+            _ = interval.tick() => {
+                let mut aggregator = aggregator.lock().unwrap();
+                if let Err(e) = aggregator.delete_events(period) {
+                    warn!("Deletion task failed {:?}, leave scheduler", e);
+                    break;
+                }
+            },
             _ = rx.recv() => {
                 debug!("Termination signal received, leave scheduler");
                 break;
             }
-        }
-        let aggregator = aggregator.clone();
-        if !spawn_worker(aggregator, period).await {
-            warn!("Worker returned error, leave scheduler");
-            break;
         }
     }
 }
