@@ -13,11 +13,11 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event_builder::PersonEventBuilder;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
-use crate::util::seconds_timestamp::{SecondsTimestamp, UnixTimestamp};
+use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
 pub struct Aggregator {
     connection: Connection,
-    timestamp: Box<dyn SecondsTimestamp + Send>
+    timestamp: BoxedTimestamp
 }
 
 pub type MutexAggregator = Arc<Mutex<Aggregator>>;
@@ -27,7 +27,7 @@ impl Aggregator {
         Self::new_internal(db_path, UnixTimestamp::new())
     }
 
-    fn new_internal(db_path: &str, timestamp: Box<dyn SecondsTimestamp + Send>) -> Result<Self, Box<dyn Error>> {
+    fn new_internal(db_path: &str, timestamp: BoxedTimestamp) -> Result<Self, Box<dyn Error>> {
         let connection = Connection::open(db_path)?;
         PersonTable::create_table(&connection)?;
         PersonEventTable::create_table(&connection)?;
@@ -40,7 +40,7 @@ impl Aggregator {
         let tx = self.connection.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         // Create and write events and their revisions
-        let timestamp = self.timestamp.get();
+        let timestamp = self.timestamp.as_secs();
         let event = PersonEventBuilder::for_insert(person_id, &person);
         Self::write_person_event_and_revision(&tx, timestamp, event)?;
         let event = LocationEventBuilder::for_insert(person_id, &person);
@@ -56,7 +56,7 @@ impl Aggregator {
             Some(before) => {
                 let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
                 // Create and write events and their revisions
-                let timestamp = self.timestamp.get();
+                let timestamp = self.timestamp.as_secs();
                 let event = PersonEventBuilder::for_update(person_id, &before, &after);
                 Self::write_person_event_and_revision(&tx, timestamp, event)?;
                 let is_last = Self::is_last_location(&tx, &before)?;
@@ -80,7 +80,7 @@ impl Aggregator {
             Some(before) => {
                 PersonTable::delete(&tx, person_id)?;
                 // Create and write events and their revisions
-                let timestamp = self.timestamp.get();
+                let timestamp = self.timestamp.as_secs();
                 let event = PersonEventBuilder::for_delete(person_id);
                 Self::write_person_event_and_revision(&tx, timestamp, event)?;
                 let is_last = Self::is_last_location(&tx, &before)?;
@@ -131,7 +131,7 @@ impl Aggregator {
 
     pub fn delete_events(&mut self, created_before: Duration) -> Result<usize, Box<dyn Error>> {
         let tx = self.connection.transaction()?;
-        let timestamp = self.timestamp.get() - created_before.as_secs();
+        let timestamp = self.timestamp.as_secs() - created_before.as_secs();
         let count = PersonEventTable::delete_before(&tx, timestamp)?;
         tx.commit()?;
         if count > 0 {
@@ -178,7 +178,7 @@ mod tests {
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
-    use crate::util::seconds_timestamp::tests::IncrementalTimestamp;
+    use crate::util::timestamp::tests::IncrementalTimestamp;
 
     //
     // Test insert/update/delete
