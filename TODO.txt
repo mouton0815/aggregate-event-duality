@@ -20,3 +20,5 @@
 [ ] Create "TransactionFacade" that wraps the aggregator
 [ ] Rename server to processor? (if so, also change README.md incl figures)
 [ ] Move aggregator and scheduler to subdir again (but which?)
+[ ] Move Fetcher and Worker implementations to separate files (and then make pgk "util" private again)
+

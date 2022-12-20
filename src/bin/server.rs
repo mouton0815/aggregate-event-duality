@@ -4,9 +4,31 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::broadcast;
-use aggregate_event_duality::aggregator::Aggregator;
+use aggregate_event_duality::aggregator::{Aggregator, MutexAggregator};
 use aggregate_event_duality::rest::http_server::spawn_http_server;
-use aggregate_event_duality::scheduler::spawn_scheduler;
+use aggregate_event_duality::util::scheduled_worker::{MutexWorker, spawn_scheduler, Worker};
+
+struct DeletionWorker {
+    aggregator: MutexAggregator,
+    period: Duration
+}
+
+impl DeletionWorker {
+    fn new(aggregator: &MutexAggregator, period: Duration) -> MutexWorker {
+        let aggregator = aggregator.clone();
+        Arc::new(Mutex::new(Self { aggregator, period }))
+    }
+}
+
+impl Worker for DeletionWorker {
+    fn work(&mut self) -> Result<(), Box<dyn Error>> {
+        let mut worker = self.aggregator.lock().unwrap();
+        match worker.delete_events(self.period) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -18,7 +40,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (tx, rx_scheduler) = broadcast::channel(1);
     let rx_http_server = tx.subscribe();
 
-    let scheduler_handle = spawn_scheduler(&aggregator, rx_scheduler, Duration::from_secs(10));
+    let period = Duration::from_secs(10);
+    let worker = DeletionWorker::new(&aggregator, period);
+    let scheduler_handle = spawn_scheduler(&worker, rx_scheduler, period);
     tokio::pin!(scheduler_handle);
 
     let http_server_handle = spawn_http_server(&aggregator, rx_http_server, 5);
