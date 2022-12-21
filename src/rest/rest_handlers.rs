@@ -1,5 +1,4 @@
 use std::convert::Infallible;
-use std::error::Error;
 use std::time::Duration;
 use serde::{Serialize, Deserialize};
 use futures_util::StreamExt;
@@ -9,7 +8,8 @@ use warp::sse::Event;
 use crate::aggregator::MutexAggregator;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
-use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
+use crate::rest::event_fetcher::{LocationEventFetcher, PersonEventFetcher};
+use crate::util::scheduled_stream::ScheduledStream;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 struct ErrorResult {
@@ -80,31 +80,6 @@ pub async fn get_persons(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, 
     }
 }
 
-struct PersonEventFetcher {
-    aggregator: MutexAggregator,
-    offset: u32
-}
-
-impl PersonEventFetcher {
-    fn new(aggregator: MutexAggregator, offset: u32) -> Self {
-        Self { aggregator, offset }
-    }
-}
-
-impl Fetcher<String> for PersonEventFetcher {
-    fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
-        let mut aggregator = self.aggregator.lock().unwrap();
-        let results = aggregator.get_person_events(self.offset);
-        return match results {
-            Err(err) => Err(err),
-            Ok(events) => {
-                self.offset += events.len() as u32;
-                Ok(events)
-            }
-        }
-    }
-}
-
 pub async fn get_person_events(aggregator: MutexAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
     let from_revision = from_revision.unwrap_or(1);
     let fetcher = Box::new(PersonEventFetcher::new(aggregator, from_revision));
@@ -125,31 +100,6 @@ pub async fn get_locations(aggregator: MutexAggregator) -> Result<Box<dyn Reply>
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
             Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
-        }
-    }
-}
-
-struct LocationEventFetcher {
-    aggregator: MutexAggregator,
-    offset: u32
-}
-
-impl LocationEventFetcher {
-    fn new(aggregator: MutexAggregator, offset: u32) -> Self {
-        Self { aggregator, offset }
-    }
-}
-
-impl Fetcher<String> for LocationEventFetcher {
-    fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
-        let mut aggregator = self.aggregator.lock().unwrap();
-        let results = aggregator.get_location_events(self.offset);
-        return match results {
-            Err(err) => Err(err),
-            Ok(events) => {
-                self.offset += events.len() as u32;
-                Ok(events)
-            }
         }
     }
 }
