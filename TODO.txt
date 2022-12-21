@@ -22,4 +22,5 @@
 [ ] Move aggregator and scheduler to subdir again (but which?)
 [X] Move Fetcher and Worker implementations to separate files (and then make pgk "util" private again)
 [ ] Document ScheduledStream!
+[ ] Document EventFetcher!
 

@@ -133,7 +133,8 @@ impl Aggregator {
     pub fn delete_events(&mut self, created_before: Duration) -> Result<usize, Box<dyn Error>> {
         let tx = self.connection.transaction()?;
         let timestamp = self.timestamp.as_secs() - created_before.as_secs();
-        let count = PersonEventTable::delete_before(&tx, timestamp)?;
+        let mut count = PersonEventTable::delete_before(&tx, timestamp)?;
+        count += LocationEventTable::delete_before(&tx, timestamp)?;
         tx.commit()?;
         if count > 0 {
             info!("Deleted {} outdated events", count);
