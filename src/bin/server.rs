@@ -4,30 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::broadcast;
-use aggregate_event_duality::aggregator::{Aggregator, MutexAggregator};
+use aggregate_event_duality::aggregator::Aggregator;
 use aggregate_event_duality::rest::http_server::spawn_http_server;
-use aggregate_event_duality::util::scheduled_worker::{MutexWorker, spawn_scheduler, Worker};
-
-struct EventDeletionWorker {
-    aggregator: MutexAggregator,
-    period: Duration
-}
-
-impl EventDeletionWorker {
-    fn new(aggregator: MutexAggregator, period: Duration) -> MutexWorker {
-        Arc::new(Mutex::new(Self { aggregator, period }))
-    }
-}
-
-impl Worker for EventDeletionWorker {
-    fn work(&mut self) -> Result<(), Box<dyn Error>> {
-        let mut worker = self.aggregator.lock().unwrap();
-        match worker.delete_events(self.period) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e)
-        }
-    }
-}
+use aggregate_event_duality::util::deletion_scheduler::{MutexDeletionTask, spawn_deletion_scheduler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -40,8 +19,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rx_http_server = tx.subscribe();
 
     let period = Duration::from_secs(10);
-    let worker = EventDeletionWorker::new(aggregator.clone(), period);
-    let scheduler_handle = spawn_scheduler(&worker, rx_scheduler, period);
+    let deletion_task: MutexDeletionTask = aggregator.clone(); // Aggregator implements trait DeletionTask
+    let scheduler_handle = spawn_deletion_scheduler(&deletion_task, rx_scheduler, period);
     tokio::pin!(scheduler_handle);
 
     let http_server_handle = spawn_http_server(&aggregator, rx_http_server, 5);
@@ -50,7 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     loop {
         tokio::select! {
             _ = &mut scheduler_handle => {
-                info!("Scheduler terminated");
+                info!("Deletion scheduler terminated");
                 break;
             }
             _ = &mut http_server_handle => {

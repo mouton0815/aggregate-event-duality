@@ -13,6 +13,7 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event_builder::PersonEventBuilder;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
+use crate::util::deletion_scheduler::DeletionTask;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
 pub struct Aggregator {
@@ -165,6 +166,16 @@ impl Aggregator {
             RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
         }
         Ok(())
+    }
+}
+
+// Implementation of the task for the deletion scheduler
+impl DeletionTask for Aggregator {
+    fn delete(&mut self, created_before: Duration) -> Result<(), Box<dyn Error>> {
+        match self.delete_events(created_before) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e)
+        }
     }
 }
 
