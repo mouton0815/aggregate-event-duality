@@ -76,6 +76,6 @@ mod tests {
         assert!(tx.send(()).is_ok()); // Terminate scheduler
         assert!(handle.await.is_ok());
         let worker = worker.lock().unwrap();
-        assert!(worker.counter > 0);
+        assert!(worker.counter > 0); // TestWorker::work() was called at least once
     }
 }

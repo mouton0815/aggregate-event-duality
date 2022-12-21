@@ -8,19 +8,18 @@ use aggregate_event_duality::aggregator::{Aggregator, MutexAggregator};
 use aggregate_event_duality::rest::http_server::spawn_http_server;
 use aggregate_event_duality::util::scheduled_worker::{MutexWorker, spawn_scheduler, Worker};
 
-struct DeletionWorker {
+struct EventDeletionWorker {
     aggregator: MutexAggregator,
     period: Duration
 }
 
-impl DeletionWorker {
-    fn new(aggregator: &MutexAggregator, period: Duration) -> MutexWorker {
-        let aggregator = aggregator.clone();
+impl EventDeletionWorker {
+    fn new(aggregator: MutexAggregator, period: Duration) -> MutexWorker {
         Arc::new(Mutex::new(Self { aggregator, period }))
     }
 }
 
-impl Worker for DeletionWorker {
+impl Worker for EventDeletionWorker {
     fn work(&mut self) -> Result<(), Box<dyn Error>> {
         let mut worker = self.aggregator.lock().unwrap();
         match worker.delete_events(self.period) {
@@ -41,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rx_http_server = tx.subscribe();
 
     let period = Duration::from_secs(10);
-    let worker = DeletionWorker::new(&aggregator, period);
+    let worker = EventDeletionWorker::new(aggregator.clone(), period);
     let scheduler_handle = spawn_scheduler(&worker, rx_scheduler, period);
     tokio::pin!(scheduler_handle);
 

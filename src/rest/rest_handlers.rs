@@ -81,13 +81,13 @@ pub async fn get_persons(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, 
 }
 
 struct PersonEventFetcher {
-    offset: u32,
-    aggregator: MutexAggregator
+    aggregator: MutexAggregator,
+    offset: u32
 }
 
 impl PersonEventFetcher {
-    fn new(offset: u32, aggregator: MutexAggregator) -> Self {
-        Self { offset, aggregator }
+    fn new(aggregator: MutexAggregator, offset: u32) -> Self {
+        Self { aggregator, offset }
     }
 }
 
@@ -107,7 +107,7 @@ impl Fetcher<String> for PersonEventFetcher {
 
 pub async fn get_person_events(aggregator: MutexAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
     let from_revision = from_revision.unwrap_or(1);
-    let fetcher = Box::new(PersonEventFetcher::new(from_revision, aggregator));
+    let fetcher = Box::new(PersonEventFetcher::new(aggregator, from_revision));
     let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
     let stream = stream.map(move |item| {
         Ok::<Event, Infallible>(Event::default().data(item))
@@ -130,13 +130,13 @@ pub async fn get_locations(aggregator: MutexAggregator) -> Result<Box<dyn Reply>
 }
 
 struct LocationEventFetcher {
-    offset: u32,
-    aggregator: MutexAggregator
+    aggregator: MutexAggregator,
+    offset: u32
 }
 
 impl LocationEventFetcher {
-    fn new(offset: u32, aggregator: MutexAggregator) -> Self {
-        Self { offset, aggregator }
+    fn new(aggregator: MutexAggregator, offset: u32) -> Self {
+        Self { aggregator, offset }
     }
 }
 
@@ -156,7 +156,7 @@ impl Fetcher<String> for LocationEventFetcher {
 
 pub async fn get_location_events(aggregator: MutexAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
     let from_revision = from_revision.unwrap_or(1);
-    let fetcher = Box::new(LocationEventFetcher::new(from_revision, aggregator));
+    let fetcher = Box::new(LocationEventFetcher::new(aggregator, from_revision));
     let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
     let stream = stream.map(move |item| {
         Ok::<Event, Infallible>(Event::default().data(item))
