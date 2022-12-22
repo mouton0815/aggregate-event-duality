@@ -1,8 +1,7 @@
-use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use log::{info, warn};
-use rusqlite::{Connection, Transaction};
+use rusqlite::{Connection, Result, Transaction};
 use crate::database::event_table::{LocationEventTable, PersonEventTable};
 use crate::database::location_view::LocationView;
 use crate::database::person_table::PersonTable;
@@ -24,11 +23,11 @@ pub struct Aggregator {
 pub type MutexAggregator = Arc<Mutex<Aggregator>>;
 
 impl Aggregator {
-    pub fn new(db_path: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(db_path: &str) -> Result<Self> {
         Self::new_internal(db_path, UnixTimestamp::new())
     }
 
-    fn new_internal(db_path: &str, timestamp: BoxedTimestamp) -> Result<Self, Box<dyn Error>> {
+    fn new_internal(db_path: &str, timestamp: BoxedTimestamp) -> Result<Self> {
         let connection = Connection::open(db_path)?;
         PersonTable::create_table(&connection)?;
         PersonEventTable::create_table(&connection)?;
@@ -37,7 +36,7 @@ impl Aggregator {
         Ok(Self{ connection, timestamp })
     }
 
-    pub fn insert<'a>(&mut self, person: &'a PersonData) -> Result<(u32, &'a PersonData), Box<dyn Error>> {
+    pub fn insert<'a>(&mut self, person: &'a PersonData) -> Result<(u32, &'a PersonData)> {
         let tx = self.connection.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         // Create and write events and their revisions
@@ -51,7 +50,7 @@ impl Aggregator {
         Ok((person_id, person))
     }
 
-    pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>, rusqlite::Error> {
+    pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>> {
         let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
@@ -75,7 +74,7 @@ impl Aggregator {
         }
     }
 
-    pub fn delete(&mut self, person_id: u32) -> Result<bool, Box<dyn Error>> {
+    pub fn delete(&mut self, person_id: u32) -> Result<bool> {
         let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
@@ -99,7 +98,7 @@ impl Aggregator {
         }
     }
 
-    pub fn get_persons(&mut self) -> Result<(u32, PersonMap), Box<dyn Error>> {
+    pub fn get_persons(&mut self) -> Result<(u32, PersonMap)> {
         let tx = self.connection.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
         let persons = PersonTable::select_all(&tx)?;
@@ -107,7 +106,7 @@ impl Aggregator {
         Ok((revision, persons))
     }
 
-    pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>> {
         let tx = self.connection.transaction()?;
         let events = PersonEventTable::read(&tx, from_revision)?;
         tx.commit()?;
@@ -115,7 +114,7 @@ impl Aggregator {
     }
 
     // TODO: Use streams (for all collection results)
-    pub fn get_locations(&mut self) -> Result<(u32, LocationMap), Box<dyn Error>> {
+    pub fn get_locations(&mut self) -> Result<(u32, LocationMap)> {
         let tx = self.connection.transaction()?;
         let revision = RevisionTable::read(&tx, RevisionType::LOCATION)?;
         let locations = LocationView::select_all(&tx)?;
@@ -123,14 +122,14 @@ impl Aggregator {
         Ok((revision, locations))
     }
 
-    pub fn get_location_events(&mut self, from_revision: u32) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_location_events(&mut self, from_revision: u32) -> Result<Vec<String>> {
         let tx = self.connection.transaction()?;
         let events = LocationEventTable::read(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
     }
 
-    pub fn delete_events(&mut self, created_before: Duration) -> Result<usize, Box<dyn Error>> {
+    pub fn delete_events(&mut self, created_before: Duration) -> Result<usize> {
         let tx = self.connection.transaction()?;
         let timestamp = self.timestamp.as_secs() - created_before.as_secs();
         let mut count = PersonEventTable::delete_before(&tx, timestamp)?;
@@ -146,14 +145,14 @@ impl Aggregator {
     // Private functions
     //
 
-    fn is_last_location(tx: &Transaction, person: &PersonData) -> Result<bool, rusqlite::Error> {
+    fn is_last_location(tx: &Transaction, person: &PersonData) -> Result<bool> {
         match person.location.as_ref() {
             Some(location) => Ok(!PersonTable::exists_location(tx, location)?),
             None => Ok(false)
         }
     }
 
-    fn write_person_event_and_revision(tx: &Transaction, timestamp: u64, event: Option<String>) -> Result<(), rusqlite::Error> {
+    fn write_person_event_and_revision(tx: &Transaction, timestamp: u64, event: Option<String>) -> Result<()> {
         if event.is_some() {
             let revision = PersonEventTable::insert(&tx, timestamp, event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::PERSON, revision)?;
@@ -161,7 +160,7 @@ impl Aggregator {
         Ok(())
     }
 
-    fn write_location_event_and_revision(tx: &Transaction, timestamp: u64, event: Option<String>) -> Result<(), rusqlite::Error> {
+    fn write_location_event_and_revision(tx: &Transaction, timestamp: u64, event: Option<String>) -> Result<()> {
         if event.is_some() {
             let revision = LocationEventTable::insert(&tx, timestamp, event.unwrap().as_str())?;
             RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)?;
@@ -171,8 +170,8 @@ impl Aggregator {
 }
 
 // Implementation of the task for the deletion scheduler
-impl DeletionTask for Aggregator {
-    fn delete(&mut self, created_before: Duration) -> Result<(), Box<dyn Error>> {
+impl DeletionTask<rusqlite::Error> for Aggregator {
+    fn delete(&mut self, created_before: Duration) -> Result<()> {
         match self.delete_events(created_before) {
             Ok(_) => Ok(()),
             Err(e) => Err(e)
@@ -182,8 +181,8 @@ impl DeletionTask for Aggregator {
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
     use std::time::Duration;
+    use rusqlite::Result;
     use crate::aggregator::Aggregator;
     use crate::database::revision_table::{RevisionTable, RevisionType};
     use crate::domain::person_data::PersonData;
@@ -643,7 +642,7 @@ mod tests {
         assert_eq!(revision.unwrap(), revision_ref as u32);
     }
 
-    fn check_events(events: Result<Vec<String>, Box<dyn Error>>, events_ref: &[&str]) {
+    fn check_events(events: Result<Vec<String>>, events_ref: &[&str]) {
         assert!(events.is_ok());
         let events = events.unwrap();
         assert_eq!(events.len(), events_ref.len());

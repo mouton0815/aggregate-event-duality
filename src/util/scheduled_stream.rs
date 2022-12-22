@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::error::Error;
+use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 use std::time::Duration;
@@ -8,20 +8,20 @@ use futures_util::Stream;
 use log::error;
 use tokio::time::{Interval, interval};
 
-pub trait Fetcher<T> {
-    fn fetch(&mut self) -> Result<Vec<T>, Box<dyn Error>>;
+pub trait Fetcher<T, E> {
+    fn fetch(&mut self) -> Result<Vec<T>, E>;
 }
 
-pub type BoxedFetcher<T> = Box<dyn Fetcher<T> + Send>;
+pub type BoxedFetcher<T, E> = Box<dyn Fetcher<T, E> + Send>;
 
-pub struct ScheduledStream<T> {
+pub struct ScheduledStream<T, E> {
     interval: Interval,
     buffer: Box<VecDeque<T>>,
-    fetcher: BoxedFetcher<T>
+    fetcher: BoxedFetcher<T, E>
 }
 
-impl<T> ScheduledStream<T> {
-    pub fn new(duration: Duration, fetcher: BoxedFetcher<T>) -> Self {
+impl<T, E> ScheduledStream<T, E> {
+    pub fn new(duration: Duration, fetcher: BoxedFetcher<T, E>) -> Self {
         Self {
             interval: interval(duration),
             buffer: Box::new(VecDeque::new()),
@@ -30,7 +30,7 @@ impl<T> ScheduledStream<T> {
     }
 }
 
-impl<T> Stream for ScheduledStream<T> {
+impl<T, E: Debug> Stream for ScheduledStream<T, E> {
     type Item = T;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<T>> {
@@ -43,7 +43,7 @@ impl<T> Stream for ScheduledStream<T> {
                     }
                 }
                 Err(err) => {
-                    error!("Fetcher returned error {}, stop polling", err);
+                    error!("Fetcher returned error {:?}, stop polling", err);
                     return Poll::Ready(None)
                 }
             }
@@ -57,7 +57,6 @@ impl<T> Stream for ScheduledStream<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
     use std::time::Duration;
     use futures_util::StreamExt;
     use crate::util::scheduled_stream::{Fetcher, ScheduledStream};
@@ -79,10 +78,10 @@ mod tests {
         }
     }
 
-    impl Fetcher<String> for TestFetcher {
-        fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
+    impl Fetcher<String, TestError> for TestFetcher {
+        fn fetch(&mut self) -> Result<Vec<String>, TestError> {
             if self.index == self.batches.len() {
-                return Err(Box::new(TestError::EndOfSequence))
+                return Err(TestError::EndOfSequence)
             }
             let iter = self.batches[self.index].iter();
             self.index += 1;

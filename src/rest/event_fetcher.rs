@@ -1,4 +1,3 @@
-use std::error::Error;
 use crate::aggregator::MutexAggregator;
 use crate::util::scheduled_stream::Fetcher;
 
@@ -13,8 +12,8 @@ impl PersonEventFetcher {
     }
 }
 
-impl Fetcher<String> for PersonEventFetcher {
-    fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
+impl Fetcher<String, rusqlite::Error> for PersonEventFetcher {
+    fn fetch(&mut self) -> Result<Vec<String>, rusqlite::Error> {
         let mut aggregator = self.aggregator.lock().unwrap();
         let results = aggregator.get_person_events(self.offset);
         return match results {
@@ -38,8 +37,8 @@ impl LocationEventFetcher {
     }
 }
 
-impl Fetcher<String> for LocationEventFetcher {
-    fn fetch(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
+impl Fetcher<String, rusqlite::Error> for LocationEventFetcher {
+    fn fetch(&mut self) -> Result<Vec<String>, rusqlite::Error> {
         let mut aggregator = self.aggregator.lock().unwrap();
         let results = aggregator.get_location_events(self.offset);
         return match results {

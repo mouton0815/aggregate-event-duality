@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use log::{debug, info, warn};
 use std::time::Duration;
@@ -6,14 +6,15 @@ use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
 use tokio::time;
 
-pub trait DeletionTask {
-    fn delete(&mut self, created_before: Duration) -> Result<(), Box<dyn Error>>;
+
+pub trait DeletionTask<E> {
+    fn delete(&mut self, created_before: Duration) -> Result<(), E>;
 }
 
-pub type MutexDeletionTask = Arc<Mutex<dyn DeletionTask + Send>>;
+pub type MutexDeletionTask<E> = Arc<Mutex<dyn DeletionTask<E> + Send>>;
 
 // Must be async as required by tokio::select!
-async fn repeat(task: &MutexDeletionTask, period: Duration, mut rx: Receiver<()>) {
+async fn repeat<E: Debug>(task: &MutexDeletionTask<E>, period: Duration, mut rx: Receiver<()>) {
     let mut interval = time::interval(period);
     loop {
         tokio::select! {
@@ -32,7 +33,7 @@ async fn repeat(task: &MutexDeletionTask, period: Duration, mut rx: Receiver<()>
     }
 }
 
-pub fn spawn_deletion_scheduler(task: &MutexDeletionTask, rx: Receiver<()>, period: Duration) -> JoinHandle<()> {
+pub fn spawn_deletion_scheduler<E: Debug + 'static>(task: &MutexDeletionTask<E>, rx: Receiver<()>, period: Duration) -> JoinHandle<()> {
     info!("Spawn deletion scheduler");
     let task = task.clone();
     tokio::spawn(async move {
@@ -42,12 +43,14 @@ pub fn spawn_deletion_scheduler(task: &MutexDeletionTask, rx: Receiver<()>, peri
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use tokio::sync::broadcast;
     use tokio::time::sleep;
     use crate::util::deletion_scheduler::{MutexDeletionTask, spawn_deletion_scheduler, DeletionTask};
+
+    #[derive(Debug)]
+    enum TestError {}
 
     struct TestTask {
         counter: u128
@@ -59,8 +62,8 @@ mod tests {
         }
     }
 
-    impl DeletionTask for TestTask {
-        fn delete(&mut self, created_before: Duration) -> Result<(), Box<dyn Error>> {
+    impl DeletionTask<TestError> for TestTask {
+        fn delete(&mut self, created_before: Duration) -> Result<(), TestError> {
             self.counter += created_before.as_millis();
             Ok(())
         }
@@ -69,7 +72,7 @@ mod tests {
     #[tokio::test]
     async fn test_scheduler() {
         let task = Arc::new(Mutex::new(TestTask::new()));
-        let cloned : MutexDeletionTask = task.clone();
+        let cloned : MutexDeletionTask<TestError> = task.clone();
         let (tx, rx) = broadcast::channel(1);
         let handle = spawn_deletion_scheduler(&cloned, rx, Duration::from_millis(1));
         sleep(Duration::from_millis(10)).await;

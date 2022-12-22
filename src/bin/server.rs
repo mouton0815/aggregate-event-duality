@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let rx_http_server = tx.subscribe();
 
     let period = Duration::from_secs(10);
-    let deletion_task: MutexDeletionTask = aggregator.clone(); // Aggregator implements trait DeletionTask
+    let deletion_task: MutexDeletionTask<rusqlite::Error> = aggregator.clone(); // Aggregator implements trait DeletionTask
     let scheduler_handle = spawn_deletion_scheduler(&deletion_task, rx_scheduler, period);
     tokio::pin!(scheduler_handle);
 
