@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::broadcast;
-use aggregate_event_duality::aggregator::Aggregator;
+use aggregate_event_duality::aggregator::aggregator_facade::AggregatorFacade;
 use aggregate_event_duality::rest::http_server::spawn_http_server;
 use aggregate_event_duality::util::deletion_scheduler::{MutexDeletionTask, spawn_deletion_scheduler};
 
@@ -12,7 +12,7 @@ use aggregate_event_duality::util::deletion_scheduler::{MutexDeletionTask, spawn
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    let aggregator = Aggregator::new(":memory:")?;
+    let aggregator = AggregatorFacade::new(":memory:")?;
     let aggregator= Arc::new(Mutex::new(aggregator));
 
     let (tx, rx_scheduler) = broadcast::channel(1);

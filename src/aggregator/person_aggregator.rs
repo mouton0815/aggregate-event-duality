@@ -1,6 +1,6 @@
 use std::time::Duration;
 use rusqlite::{Connection, Result, Transaction};
-use crate::business::aggregator_trait::AggregatorTrait;
+use crate::aggregator::aggregator_trait::AggregatorTrait;
 use crate::database::event_table::PersonEventTable;
 use crate::database::person_table::PersonTable;
 use crate::database::revision_table::{RevisionTable, RevisionType};
@@ -8,7 +8,7 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
-use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
+use crate::util::timestamp::BoxedTimestamp;
 
 // TODO: PersonEventWriter - also justify the name in documentation
 pub struct PersonAggregator {
@@ -92,9 +92,8 @@ impl PersonAggregator {
 mod tests {
     use std::time::Duration;
     use rusqlite::{Connection, Result, Transaction};
-    use crate::business::aggregator_facade::AggregatorFacade;
-    use crate::business::aggregator_trait::AggregatorTrait;
-    use crate::business::person_aggregator::PersonAggregator;
+    use crate::aggregator::aggregator_trait::AggregatorTrait;
+    use crate::aggregator::person_aggregator::PersonAggregator;
     use crate::database::event_table::PersonEventTable;
     use crate::database::person_table::PersonTable;
     use crate::database::revision_table::{RevisionTable, RevisionType};

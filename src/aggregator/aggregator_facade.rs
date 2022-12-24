@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use log::{info, warn};
 use rusqlite::{Connection, Result};
-use crate::business::aggregator_trait::AggregatorTrait;
-use crate::business::person_aggregator::PersonAggregator;
+use crate::aggregator::aggregator_trait::AggregatorTrait;
+use crate::aggregator::person_aggregator::PersonAggregator;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
@@ -109,7 +109,7 @@ impl DeletionTask<rusqlite::Error> for AggregatorFacade {
 
 #[cfg(test)]
 mod tests {
-    use crate::business::aggregator_facade::AggregatorFacade;
+    use crate::aggregator::aggregator_facade::AggregatorFacade;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;

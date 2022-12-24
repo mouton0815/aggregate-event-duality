@@ -5,10 +5,10 @@ use futures_util::StreamExt;
 use warp::http::StatusCode;
 use warp::{reply, Reply, sse};
 use warp::sse::Event;
-use crate::aggregator::MutexAggregator;
+use crate::aggregator::aggregator_facade::MutexAggregator;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
-use crate::rest::event_fetcher::{LocationEventFetcher, PersonEventFetcher};
+use crate::rest::event_fetcher::PersonEventFetcher;
 use crate::util::scheduled_stream::ScheduledStream;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -83,30 +83,6 @@ pub async fn get_persons(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, 
 pub async fn get_person_events(aggregator: MutexAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
     let from_revision = from_revision.unwrap_or(1);
     let fetcher = Box::new(PersonEventFetcher::new(aggregator, from_revision));
-    let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
-    let stream = stream.map(move |item| {
-        Ok::<Event, Infallible>(Event::default().data(item))
-    });
-    Ok(sse::reply(stream))
-}
-
-pub async fn get_locations(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, Infallible> {
-    let mut aggregator = aggregator.lock().unwrap();
-    return match aggregator.get_locations() {
-        Ok(result) => {
-            let (revision, locations) = result;
-            Ok(Box::new(reply::with_header(reply::json(&locations), "X-From-Revision", revision)))
-        },
-        Err(error) => {
-            let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
-        }
-    }
-}
-
-pub async fn get_location_events(aggregator: MutexAggregator, repeat_every_secs: u64, from_revision: Option<u32>) -> Result<impl Reply, Infallible> {
-    let from_revision = from_revision.unwrap_or(1);
-    let fetcher = Box::new(LocationEventFetcher::new(aggregator, from_revision));
     let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
     let stream = stream.map(move |item| {
         Ok::<Event, Infallible>(Event::default().data(item))
