@@ -35,6 +35,11 @@ impl PersonPatch {
         PersonPatch{ name, location, spouse_id }
     }
 
+    // TODO: Unit tests for is_change and remove is_noop
+    pub fn is_change(&self) -> bool {
+        self.name.is_some() || !self.location.is_absent() || !self.spouse_id.is_absent()
+    }
+
     pub fn is_noop(&self) -> bool {
         self.name.is_none() && self.location.is_absent() && self.spouse_id.is_absent()
     }

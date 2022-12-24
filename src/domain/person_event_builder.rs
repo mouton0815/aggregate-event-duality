@@ -2,6 +2,7 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
 use crate::domain::person_patch::PersonPatch;
 
+// TODO: PersonEventBuilder is deprecated
 pub struct PersonEventBuilder;
 
 impl PersonEventBuilder {

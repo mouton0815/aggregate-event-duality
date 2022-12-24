@@ -36,7 +36,7 @@ impl Aggregator {
         Ok(Self{ connection, timestamp })
     }
 
-    pub fn insert<'a>(&mut self, person: &'a PersonData) -> Result<(u32, &'a PersonData)> {
+    pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData)> {
         let tx = self.connection.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         // Create and write events and their revisions
@@ -47,7 +47,7 @@ impl Aggregator {
         Self::write_location_event_and_revision(&tx, timestamp, event)?;
         tx.commit()?;
         info!("Created {:?}", person);
-        Ok((person_id, person))
+        Ok((person_id, person.clone()))
     }
 
     pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>> {
@@ -204,7 +204,7 @@ mod tests {
         assert!(person_res.is_ok());
         let (person_id, person_data) = person_res.unwrap();
         assert_eq!(person_id, 1);
-        assert_eq!(person_data, &person);
+        assert_eq!(person_data, person);
     }
 
     #[test]
