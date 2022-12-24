@@ -10,13 +10,14 @@ use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::timestamp::BoxedTimestamp;
 
-// TODO: PersonEventWriter - also justify the name in documentation
 pub struct PersonAggregator {
     timestamp: BoxedTimestamp
 }
 
 impl AggregatorTrait for PersonAggregator {
-    type Output = PersonMap;
+    type Key = u32;
+    type Record = PersonData;
+    type Records = PersonMap;
 
     fn create_tables(&mut self, connection: &Connection) -> Result<()> {
         PersonTable::create_table(&connection)?;
@@ -24,15 +25,15 @@ impl AggregatorTrait for PersonAggregator {
         RevisionTable::create_table(&connection)
     }
 
-    fn insert(&mut self, tx: &Transaction, person: &PersonData) -> Result<Option<u32>> {
+    fn insert(&mut self, tx: &Transaction, person: &PersonData) -> Result<Self::Key> {
         let timestamp = self.timestamp.as_secs();
         let person_id = PersonTable::insert(&tx, &person)?;
         let event = PersonEvent::for_insert(person_id, person);
         self.write_event_and_revision(&tx, timestamp, event)?;
-        Ok(Some(person_id))
+        Ok(person_id)
     }
 
-    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<Option<PersonData>> {
+    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<Self::Record> {
         let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
         let patch = PersonPatch::of(person, &after); // Recompute patch for minimal change set
         if patch.is_change() {
@@ -40,7 +41,7 @@ impl AggregatorTrait for PersonAggregator {
             let event = PersonEvent::for_update(person_id, &patch);
             self.write_event_and_revision(&tx, timestamp, event)?;
         }
-        Ok(Some(after))
+        Ok(after)
     }
 
     fn delete(&mut self, tx: &Transaction, person_id: u32, _: &PersonData) -> Result<()> {
@@ -52,7 +53,7 @@ impl AggregatorTrait for PersonAggregator {
         Ok(())
     }
 
-    fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Output)> {
+    fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Records)> {
         let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
         let persons = PersonTable::select_all(&tx)?;
         Ok((revision, persons))

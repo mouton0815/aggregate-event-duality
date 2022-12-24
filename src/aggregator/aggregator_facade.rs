@@ -32,7 +32,7 @@ impl AggregatorFacade {
 
     pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData)> {
         let tx = self.connection.transaction()?;
-        let person_id = self.person_aggr.insert(&tx, &person)?.unwrap();
+        let person_id = self.person_aggr.insert(&tx, &person)?;
         tx.commit()?;
         info!("Created {:?} with id {}", person, person_id);
         Ok((person_id, person.clone()))
@@ -45,7 +45,7 @@ impl AggregatorFacade {
                 let after = self.person_aggr.update(&tx, person_id, &before, &patch)?;
                 tx.commit()?;
                 info!("Updated {:?} from {:?}", before, patch);
-                Ok(after)
+                Ok(Some(after))
             },
             None => {
                 tx.rollback()?; // There should be no changes, so tx.commit() would also work
