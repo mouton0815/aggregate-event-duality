@@ -3,6 +3,7 @@ use std::time::Duration;
 use log::{info, warn};
 use rusqlite::{Connection, Result};
 use crate::aggregator::aggregator_trait::AggregatorTrait;
+use crate::aggregator::location_aggregator::LocationAggregator;
 use crate::aggregator::person_aggregator::PersonAggregator;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
@@ -13,26 +14,26 @@ use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 // TODO: Really an "aggregator" facade??
 pub struct AggregatorFacade {
     connection: Connection,
-    person_aggr: PersonAggregator
+    person_aggr: PersonAggregator,
+    location_aggr: LocationAggregator
 }
 
 pub type MutexAggregator = Arc<Mutex<AggregatorFacade>>;
 
 impl AggregatorFacade {
     pub fn new(db_path: &str) -> Result<Self> {
-        Self::new_internal(db_path, UnixTimestamp::new())
-    }
-
-    fn new_internal(db_path: &str, timestamp: BoxedTimestamp) -> Result<Self> {
         let connection = Connection::open(db_path)?;
-        let mut person_aggr = PersonAggregator::new(timestamp);
+        let mut person_aggr = PersonAggregator::new();
         person_aggr.create_tables(&connection)?;
-        Ok(Self{ connection, person_aggr })
+        let mut location_aggr = LocationAggregator::new();
+        location_aggr.create_tables(&connection)?;
+        Ok(Self{ connection, person_aggr, location_aggr })
     }
 
     pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData)> {
         let tx = self.connection.transaction()?;
         let person_id = self.person_aggr.insert(&tx, &person)?;
+        self.location_aggr.insert(&tx, &person)?;
         tx.commit()?;
         info!("Created {:?} with id {}", person, person_id);
         Ok((person_id, person.clone()))
@@ -43,6 +44,7 @@ impl AggregatorFacade {
         match self.person_aggr.get_one(&tx, person_id)? {
             Some(before) => {
                 let after = self.person_aggr.update(&tx, person_id, &before, &patch)?;
+                self.location_aggr.update(&tx, person_id, &before, &patch)?;
                 tx.commit()?;
                 info!("Updated {:?} from {:?}", before, patch);
                 Ok(Some(after))
@@ -60,6 +62,7 @@ impl AggregatorFacade {
         match self.person_aggr.get_one(&tx, person_id)? {
             Some(before) => {
                 self.person_aggr.delete(&tx, person_id, &before)?;
+                self.location_aggr.delete(&tx, person_id, &before)?;
                 tx.commit()?;
                 info!("Deleted {:?}", before);
                 Ok(true)
@@ -114,7 +117,6 @@ mod tests {
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
-    use crate::util::timestamp::tests::IncrementalTimestamp;
 
     //
     // Test insert/update/delete
@@ -211,8 +213,7 @@ mod tests {
     //
 
     fn create_aggregator() -> AggregatorFacade {
-        let timestamp = IncrementalTimestamp::new();
-        let aggregator = AggregatorFacade::new_internal(":memory:", timestamp);
+        let aggregator = AggregatorFacade::new(":memory:");
         assert!(aggregator.is_ok());
         aggregator.unwrap()
     }

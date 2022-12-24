@@ -8,7 +8,7 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
-use crate::util::timestamp::BoxedTimestamp;
+use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
 pub struct PersonAggregator {
     timestamp: BoxedTimestamp
@@ -70,7 +70,11 @@ impl AggregatorTrait for PersonAggregator {
 }
 
 impl PersonAggregator {
-    pub fn new(timestamp: BoxedTimestamp) -> Self {
+    pub fn new() -> Self {
+        Self::new_internal(UnixTimestamp::new())
+    }
+
+    fn new_internal(timestamp: BoxedTimestamp) -> Self {
         Self{ timestamp }
     }
 
@@ -269,7 +273,7 @@ mod tests {
 
     fn create_aggregator() -> PersonAggregator {
         let timestamp = IncrementalTimestamp::new();
-        PersonAggregator::new(timestamp)
+        PersonAggregator::new_internal(timestamp)
     }
 
     fn create_connection() -> Connection {

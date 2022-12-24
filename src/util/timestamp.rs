@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub trait Timestamp {
     fn as_secs(&mut self) -> u64;
 }
+
 pub type BoxedTimestamp = Box<dyn Timestamp + Send>;
 
 /// A Unix clock with seconds resolution.
