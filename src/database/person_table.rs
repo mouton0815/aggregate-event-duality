@@ -59,7 +59,7 @@ impl PersonTable {
         Ok(tx.last_insert_rowid() as u32)
     }
 
-    pub fn update(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<Option<PersonData>> {
+    pub fn update(tx: &Transaction, person_id: u32, person: &PersonPatch) -> Result<PersonData> {
         let mut columns = Vec::new();
         let mut values: Vec<&dyn ToSql> = Vec::new();
         if !person.name.is_none() {
@@ -81,12 +81,8 @@ impl PersonTable {
         let query = format!("UPDATE {} SET {} WHERE personId=?", PERSON_TABLE, columns.join(",").as_str());
         values.push(&person_id);
         debug!("Execute\n{}\nwith: {:?}", query, person);
-        let row_count = tx.execute(query.as_str(), values.as_slice())?;
-        if row_count == 1 {
-            Self::select_by_id(&tx, person_id)
-        } else {
-            Ok(None)
-        }
+        tx.execute(query.as_str(), values.as_slice())?;
+        Self::select_by_id_internal(&tx, person_id)
     }
 
     pub fn delete(tx: &Transaction, person_id: u32) -> Result<bool> {
@@ -110,11 +106,15 @@ impl PersonTable {
     }
 
     pub fn select_by_id(tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
+        Self::select_by_id_internal(tx, person_id).optional()
+    }
+
+    pub fn select_by_id_internal(tx: &Transaction, person_id: u32) -> Result<PersonData> {
         debug!("Execute\n{} with: {}", SELECT_PERSON, person_id);
         let mut stmt = tx.prepare(SELECT_PERSON)?;
         stmt.query_row([person_id], |row | {
             Ok(Self::row_to_person_data(row)?.1)
-        }).optional()
+        })
     }
 
     pub fn exists_location(tx: &Transaction, location: &str) -> Result<bool> {
@@ -176,25 +176,22 @@ mod tests {
         assert!(PersonTable::insert(&tx, &person).is_ok());
         let result = PersonTable::update(&tx, 1, &person_update);
         assert!(result.is_ok());
-        let result = result.as_ref().unwrap().as_ref();
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), &person_ref);
+        let result = result.as_ref().unwrap();
+        assert_eq!(result, &person_ref);
         assert!(tx.commit().is_ok());
 
         let ref_persons = [(1, &person_ref)];
         check_results(&mut conn, &ref_persons);
         check_single_result(&mut conn, ref_persons[0]);
     }
-    #[test]
 
+    #[test]
     fn test_update_missing() {
         let person_update = PersonPatch::new(None, Patch::Null, Patch::Absent);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let result = PersonTable::update(&tx, 1, &person_update);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), None);
+        assert!(PersonTable::update(&tx, 1, &person_update).is_err());
     }
 
     #[test]

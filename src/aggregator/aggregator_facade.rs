@@ -5,6 +5,8 @@ use rusqlite::{Connection, Result};
 use crate::aggregator::aggregator_trait::AggregatorTrait;
 use crate::aggregator::location_aggregator::LocationAggregator;
 use crate::aggregator::person_aggregator::PersonAggregator;
+use crate::database::person_table::PersonTable;
+use crate::database::revision_table::RevisionTable;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
@@ -23,6 +25,8 @@ pub type MutexAggregator = Arc<Mutex<AggregatorFacade>>;
 impl AggregatorFacade {
     pub fn new(db_path: &str) -> Result<Self> {
         let connection = Connection::open(db_path)?;
+        PersonTable::create_table(&connection)?;
+        RevisionTable::create_table(&connection)?;
         let mut person_aggr = PersonAggregator::new();
         person_aggr.create_tables(&connection)?;
         let mut location_aggr = LocationAggregator::new();
@@ -32,8 +36,9 @@ impl AggregatorFacade {
 
     pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData)> {
         let tx = self.connection.transaction()?;
-        let person_id = self.person_aggr.insert(&tx, &person)?;
-        self.location_aggr.insert(&tx, &person)?;
+        let person_id = PersonTable::insert(&tx, &person)?;
+        self.person_aggr.insert(&tx, person_id, &person)?;
+        self.location_aggr.insert(&tx, person_id, &person)?;
         tx.commit()?;
         info!("Created {:?} with id {}", person, person_id);
         Ok((person_id, person.clone()))
@@ -41,11 +46,14 @@ impl AggregatorFacade {
 
     pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>> {
         let tx = self.connection.transaction()?;
-        match self.person_aggr.get_one(&tx, person_id)? {
+        match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
-                let after = self.person_aggr.update(&tx, person_id, &before, &patch)?;
+                let after = PersonTable::update(&tx, person_id, &patch)?;
                 let patch = PersonPatch::of(&before, &after); // Recompute patch for minimal change set
-                self.location_aggr.update(&tx, person_id, &before, &patch)?;
+                if patch.is_change() {
+                    self.person_aggr.update(&tx, person_id, &before, &patch)?;
+                    self.location_aggr.update(&tx, person_id, &before, &patch)?;
+                }
                 tx.commit()?;
                 info!("Updated {:?} from {:?}", before, patch);
                 Ok(Some(after))
@@ -60,7 +68,7 @@ impl AggregatorFacade {
 
     pub fn delete(&mut self, person_id: u32) -> Result<bool> {
         let tx = self.connection.transaction()?;
-        match self.person_aggr.get_one(&tx, person_id)? {
+        match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
                 self.person_aggr.delete(&tx, person_id, &before)?;
                 self.location_aggr.delete(&tx, person_id, &before)?;

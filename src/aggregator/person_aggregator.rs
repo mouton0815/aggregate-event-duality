@@ -10,47 +10,60 @@ use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
+///
+/// Writes events and revision for person changes and for that reason implements
+/// [AggregatorTrait](crate::aggregator::aggregator_trait::AggregatorTrait).
+/// The actual updates of table ```person``` are already done in
+/// [AggregatorFacade](crate::aggregator::aggregator_facade::AggregatorFacade)
+/// before delegating to the aggregators.
+///
 pub struct PersonAggregator {
     timestamp: BoxedTimestamp
 }
 
+impl PersonAggregator {
+    pub fn new() -> Self {
+        Self::new_internal(UnixTimestamp::new())
+    }
+
+    fn new_internal(timestamp: BoxedTimestamp) -> Self {
+        Self{ timestamp }
+    }
+
+    fn write_event_and_revision(&mut self, tx: &Transaction, timestamp: u64, event: PersonEvent) -> Result<()> {
+        let event = Self::stringify(event);
+        let revision = PersonEventTable::insert(&tx, timestamp, event.as_str())?;
+        RevisionTable::upsert(&tx, RevisionType::PERSON, revision)
+    }
+
+    fn stringify(event: PersonEvent) -> String {
+        serde_json::to_string(&event).unwrap() // Errors should not happen, panic accepted
+    }
+}
+
 impl AggregatorTrait for PersonAggregator {
-    type Key = u32;
-    type Value = PersonData;
     type Records = PersonMap;
 
     fn create_tables(&mut self, connection: &Connection) -> Result<()> {
-        PersonTable::create_table(&connection)?;
-        PersonEventTable::create_table(&connection)?;
-        RevisionTable::create_table(&connection)
+        PersonEventTable::create_table(&connection)
     }
 
-    fn insert(&mut self, tx: &Transaction, person: &PersonData) -> Result<Self::Key> {
+    fn insert(&mut self, tx: &Transaction, person_id: u32, person: &PersonData) -> Result<()> {
         let timestamp = self.timestamp.as_secs();
-        let person_id = PersonTable::insert(&tx, &person)?;
         let event = PersonEvent::for_insert(person_id, person);
-        self.write_event_and_revision(&tx, timestamp, event)?;
-        Ok(person_id)
+        self.write_event_and_revision(&tx, timestamp, event)
     }
 
-    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<Self::Value> {
-        let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
-        let patch = PersonPatch::of(person, &after); // Recompute patch for minimal change set
-        if patch.is_change() {
-            let timestamp = self.timestamp.as_secs();
-            let event = PersonEvent::for_update(person_id, &patch);
-            self.write_event_and_revision(&tx, timestamp, event)?;
-        }
-        Ok(after)
+    fn update(&mut self, tx: &Transaction, person_id: u32, _: &PersonData, patch: &PersonPatch) -> Result<()> {
+        let timestamp = self.timestamp.as_secs();
+        let event = PersonEvent::for_update(person_id, &patch);
+        self.write_event_and_revision(&tx, timestamp, event)
     }
 
     fn delete(&mut self, tx: &Transaction, person_id: u32, _: &PersonData) -> Result<()> {
         let timestamp = self.timestamp.as_secs();
-        if PersonTable::delete(&tx, person_id)? {
-            let event = PersonEvent::for_delete(person_id);
-            self.write_event_and_revision(&tx, timestamp, event)?;
-        }
-        Ok(())
+        let event = PersonEvent::for_delete(person_id);
+        self.write_event_and_revision(&tx, timestamp, event)
     }
 
     fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Records)> {
@@ -66,30 +79,6 @@ impl AggregatorTrait for PersonAggregator {
     fn delete_events(&mut self, tx: &Transaction, created_before: Duration) -> Result<usize> {
         let created_before = self.timestamp.as_secs() - created_before.as_secs();
         PersonEventTable::delete_before(&tx, created_before)
-    }
-}
-
-impl PersonAggregator {
-    pub fn new() -> Self {
-        Self::new_internal(UnixTimestamp::new())
-    }
-
-    fn new_internal(timestamp: BoxedTimestamp) -> Self {
-        Self{ timestamp }
-    }
-
-    pub fn get_one(&mut self, tx: &Transaction, person_id: u32) -> Result<Option<PersonData>> {
-        PersonTable::select_by_id(&tx, person_id)
-    }
-
-    fn write_event_and_revision(&mut self, tx: &Transaction, timestamp: u64, event: PersonEvent) -> Result<()> {
-        let event = Self::stringify(event);
-        let revision = PersonEventTable::insert(&tx, timestamp, event.as_str())?;
-        RevisionTable::upsert(&tx, RevisionType::PERSON, revision)
-    }
-
-    fn stringify(event: PersonEvent) -> String {
-        serde_json::to_string(&event).unwrap() // Errors should not happen, panic accepted
     }
 }
 
@@ -119,7 +108,7 @@ mod tests {
 
         let person = PersonData::new("Hans", Some("Here"), None);
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, &person).is_ok());
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
 
         let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#];
         check_events(&tx, &events_ref);
@@ -134,30 +123,12 @@ mod tests {
         let person = PersonData::new("Hans", Some("Here"), None);
         let patch = PersonPatch::new(Some("Inge"), Patch::Null, Patch::Value(123));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, &person).is_ok());
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
         assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans","location":"Here"}}"#,
             r#"{"1":{"name":"Inge","location":null,"spouseId":123}}"#
-        ];
-        check_events(&tx, &events_ref);
-        assert!(tx.commit().is_ok());
-    }
-
-    #[test]
-    pub fn test_update_no_change() {
-        let mut conn = create_connection();
-        let tx = conn.transaction().unwrap();
-
-        let person = PersonData::new("Hans", Some("Here"), None);
-        let patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Null);
-        let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, &person).is_ok());
-        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
-
-        let events_ref = [
-            r#"{"1":{"name":"Hans","location":"Here"}}"#
         ];
         check_events(&tx, &events_ref);
         assert!(tx.commit().is_ok());
@@ -170,8 +141,8 @@ mod tests {
 
         let person = PersonData::new("Hans", None, None);
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, &person).is_ok());
-        assert!(aggregator.delete(&tx,1, &person).is_ok());
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.delete(&tx, 1, &person).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans"}}"#,
@@ -231,8 +202,8 @@ mod tests {
         let person = PersonData::new("Hans", None, None);
         let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(123));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, &person).is_ok());
-        assert!(aggregator.update(&tx,1, &person, &patch).is_ok());
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
 
         let event_ref1 = r#"{"1":{"name":"Hans"}}"#;
         let event_ref2 = r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":123}}"#;
@@ -252,8 +223,8 @@ mod tests {
         let person2 = PersonData::new("Inge", None, None);
         let patch2 = PersonPatch::new(Some("Fred"), Patch::Value("Nowhere"), Patch::Value(123));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, &person1).is_ok());
-        assert!(aggregator.insert(&tx, &person2).is_ok());
+        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
+        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
         assert!(aggregator.update(&tx, 2, &person2, &patch2).is_ok());
 
         // IncrementalTimestamp is at 4 inside delete_events(); minus 1 yields 3,

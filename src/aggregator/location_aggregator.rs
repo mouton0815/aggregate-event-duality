@@ -13,8 +13,6 @@ pub struct LocationAggregator {
 }
 
 impl AggregatorTrait for LocationAggregator {
-    type Key = ();
-    type Value = ();
     type Records = ();
 
     fn create_tables(&mut self, connection: &Connection) -> Result<()> {
@@ -22,12 +20,12 @@ impl AggregatorTrait for LocationAggregator {
         Ok(())
     }
 
-    fn insert(&mut self, tx: &Transaction, person: &PersonData) -> Result<Self::Key> {
+    fn insert(&mut self, tx: &Transaction, person_id: u32, person: &PersonData) -> Result<()> {
         // TODO: Implement
         Ok(())
     }
 
-    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<Self::Value> {
+    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<()> {
         // TODO: Implement
         Ok(())
     }
