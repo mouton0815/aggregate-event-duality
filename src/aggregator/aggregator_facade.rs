@@ -44,6 +44,7 @@ impl AggregatorFacade {
         match self.person_aggr.get_one(&tx, person_id)? {
             Some(before) => {
                 let after = self.person_aggr.update(&tx, person_id, &before, &patch)?;
+                let patch = PersonPatch::of(&before, &after); // Recompute patch for minimal change set
                 self.location_aggr.update(&tx, person_id, &before, &patch)?;
                 tx.commit()?;
                 info!("Updated {:?} from {:?}", before, patch);

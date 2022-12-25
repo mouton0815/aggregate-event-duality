@@ -16,7 +16,7 @@ pub struct PersonAggregator {
 
 impl AggregatorTrait for PersonAggregator {
     type Key = u32;
-    type Record = PersonData;
+    type Value = PersonData;
     type Records = PersonMap;
 
     fn create_tables(&mut self, connection: &Connection) -> Result<()> {
@@ -33,7 +33,7 @@ impl AggregatorTrait for PersonAggregator {
         Ok(person_id)
     }
 
-    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<Self::Record> {
+    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<Self::Value> {
         let after = PersonTable::update(&tx, person_id, &patch)?.unwrap();
         let patch = PersonPatch::of(person, &after); // Recompute patch for minimal change set
         if patch.is_change() {
