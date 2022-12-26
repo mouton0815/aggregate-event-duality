@@ -13,7 +13,13 @@ use crate::domain::person_patch::PersonPatch;
 use crate::util::deletion_scheduler::DeletionTask;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
-// TODO: Really an "aggregator" facade??
+// TODO: Rename to PersonProcessor?
+
+///
+/// This class is the facade to the REST handlers and the scheduler.
+/// It processes and stores person data and delegates to the aggregators.
+/// It also creates the transaction boundary for all database operations.
+///
 pub struct AggregatorFacade {
     connection: Connection,
     person_aggr: PersonAggregator,
@@ -49,8 +55,8 @@ impl AggregatorFacade {
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
                 let after = PersonTable::update(&tx, person_id, &patch)?;
-                let patch = PersonPatch::of(&before, &after); // Recompute patch for minimal change set
-                if patch.is_change() {
+                // Recompute patch for minimal change set
+                if let Some(patch) = PersonPatch::of(&before, &after) {
                     self.person_aggr.update(&tx, person_id, &before, &patch)?;
                     self.location_aggr.update(&tx, person_id, &before, &patch)?;
                 }

@@ -28,20 +28,15 @@ impl PersonPatch {
         }
     }
 
-    pub fn of(old: &PersonData, new: &PersonData) -> Self {
+    pub fn of(old: &PersonData, new: &PersonData) -> Option<Self> {
         let name = if old.name == new.name { None } else { Some(new.name.clone()) };
         let location = Patch::of_options(&old.location, &new.location);
         let spouse_id = Patch::of_options(&old.spouse_id, &new.spouse_id);
-        Self{ name, location, spouse_id }
-    }
-
-    // TODO: Unit tests for is_change and remove is_noop
-    pub fn is_change(&self) -> bool {
-        self.name.is_some() || !self.location.is_absent() || !self.spouse_id.is_absent()
-    }
-
-    pub fn is_noop(&self) -> bool {
-        self.name.is_none() && self.location.is_absent() && self.spouse_id.is_absent()
+        if name.is_none() && location.is_absent() && spouse_id.is_absent() {
+            None
+        } else {
+            Some(Self{ name, location, spouse_id })
+        }
     }
 }
 
@@ -78,7 +73,7 @@ mod tests {
         let old = PersonData::new("Hans", None, None);
         let new = PersonData::new("Inge", Some("here"), None);
         let cmp = PersonPatch::new(Some("Inge"), Patch::Value("here"), Patch::Absent);
-        assert_eq!(PersonPatch::of(&old, &new), cmp);
+        assert_eq!(PersonPatch::of(&old, &new), Some(cmp));
     }
 
     #[test]
@@ -86,36 +81,20 @@ mod tests {
         let old = PersonData::new("Hans", Some("here"), Some(123));
         let new = PersonData::new("Hans", None, None);
         let cmp = PersonPatch::new(None, Patch::Null, Patch::Null);
-        assert_eq!(PersonPatch::of(&old, &new), cmp);
+        assert_eq!(PersonPatch::of(&old, &new), Some(cmp));
     }
 
     #[test]
-    pub fn test_noop1() {
-        let person = PersonPatch::new(None, Patch::Value("foo"), Patch::Absent);
-        assert_eq!(person.is_noop(), false);
+    pub fn test_of3() {
+        let old = PersonData::new("Hans", Some("here"), Some(123));
+        let new = PersonData::new("Hans", Some("here"), Some(123));
+        assert_eq!(PersonPatch::of(&old, &new), None);
     }
 
     #[test]
-    pub fn test_noop2() {
-        let person = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Absent);
-        assert_eq!(person.is_noop(), false);
-    }
-
-    #[test]
-    pub fn test_noop3() {
-        let person = PersonPatch::new(None, Patch::Absent, Patch::Value(123));
-        assert_eq!(person.is_noop(), false);
-    }
-
-    #[test]
-    pub fn test_noop4() {
-        let person = PersonPatch::new(None, Patch::Null, Patch::Absent);
-        assert_eq!(person.is_noop(), false);
-    }
-
-    #[test]
-    pub fn test_noop5() {
-        let person = PersonPatch::new(None, Patch::Absent, Patch::Absent);
-        assert_eq!(person.is_noop(), true);
+    pub fn test_of4() {
+        let old = PersonData::new("", None, None);
+        let new = PersonData::new("", None, None);
+        assert_eq!(PersonPatch::of(&old, &new), None);
     }
 }
