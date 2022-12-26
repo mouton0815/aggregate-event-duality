@@ -21,7 +21,7 @@ pub struct PersonPatch {
 impl PersonPatch {
     /// Convenience function that takes &str literals
     pub fn new(name: Option<&str>, location: Patch<&str>, spouse_id: Patch<u32>) -> Self {
-        PersonPatch {
+        Self {
             name: name.map(|n| String::from(n)),
             location: location.map(|l| String::from(l)),
             spouse_id
@@ -32,7 +32,7 @@ impl PersonPatch {
         let name = if old.name == new.name { None } else { Some(new.name.clone()) };
         let location = Patch::of_options(&old.location, &new.location);
         let spouse_id = Patch::of_options(&old.spouse_id, &new.spouse_id);
-        PersonPatch{ name, location, spouse_id }
+        Self{ name, location, spouse_id }
     }
 
     // TODO: Unit tests for is_change and remove is_noop
@@ -50,6 +50,7 @@ mod tests {
     use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
+    use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
     pub fn test_serde1() {
@@ -116,17 +117,5 @@ mod tests {
     pub fn test_noop5() {
         let person = PersonPatch::new(None, Patch::Absent, Patch::Absent);
         assert_eq!(person.is_noop(), true);
-    }
-
-    fn serde_and_verify(person_ref: &PersonPatch, json_ref: &str) {
-        // 1. Serialize person_ref and string-compare it to json_ref
-        let json = serde_json::to_string(&person_ref);
-        assert!(json.is_ok());
-        assert_eq!(json.unwrap(), String::from(json_ref));
-
-        // 2. Deserialize the serialized json and compare it with person_ref
-        let person: Result<PersonPatch, serde_json::Error> = serde_json::from_str(json_ref);
-        assert!(person.is_ok());
-        assert_eq!(person.unwrap(), *person_ref);
     }
 }

@@ -20,6 +20,7 @@ mod tests {
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
+    use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
     pub fn test_location_map() {
@@ -49,18 +50,5 @@ mod tests {
         let location_map = LocationMap::new();
         let json_ref = r#"{}"#;
         serde_and_verify(&location_map, json_ref);
-    }
-
-
-    fn serde_and_verify(location_map_ref: &LocationMap, json_ref: &str) {
-        // 1. Serialize location_map_ref and string-compare it to json_ref
-        let json = serde_json::to_string(&location_map_ref);
-        assert!(json.is_ok());
-        assert_eq!(json.unwrap(), String::from(json_ref));
-
-        // 2. Deserialize the serialized json and compare it with location_map_ref
-        let location_map: Result<LocationMap, serde_json::Error> = serde_json::from_str(json_ref);
-        assert!(location_map.is_ok());
-        assert_eq!(location_map.unwrap(), *location_map_ref);
     }
 }

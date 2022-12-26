@@ -30,6 +30,7 @@ impl PersonMap {
 mod tests {
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
+    use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
     pub fn test_person_map() {
@@ -73,18 +74,5 @@ mod tests {
         person_map.put(5, person);
         assert_eq!(person_map.len(), 1);
         assert_eq!(person_map.get(5), &person_ref);
-    }
-
-    fn serde_and_verify(person_map_ref: &PersonMap, json_ref: &str) {
-        // 1. Serialize person_map_ref and string-compare it to json_ref
-        let json = serde_json::to_string(&person_map_ref);
-        assert!(json.is_ok());
-        assert_eq!(json.unwrap(), String::from(json_ref));
-
-        // 2. Deserialize the serialized json and compare it with person_map_ref
-        let person_map: Result<PersonMap, serde_json::Error> = serde_json::from_str(json_ref);
-        assert!(person_map.is_ok());
-        let person_map : PersonMap = person_map.unwrap();
-        assert_eq!(person_map, *person_map_ref);
     }
 }

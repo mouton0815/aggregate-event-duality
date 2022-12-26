@@ -132,6 +132,7 @@ impl<T: ToSql> ToSql for Patch<T> {
 mod tests {
     use crate::util::patch::Patch;
     use serde::{Deserialize, Serialize};
+    use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
     struct Record {
@@ -297,15 +298,5 @@ mod tests {
         };
         let json_ref = r#"{}"#;
         serde_and_verify(&record_ref, json_ref);
-    }
-
-    fn serde_and_verify(record_ref: &Record, json_ref: &str) {
-        let json = serde_json::to_string(&record_ref);
-        assert!(json.is_ok());
-        assert_eq!(json.unwrap(), String::from(json_ref));
-
-        let record : Result<Record, serde_json::Error> = serde_json::from_str(json_ref);
-        assert!(record.is_ok());
-        assert_eq!(record.unwrap(), *record_ref);
     }
 }

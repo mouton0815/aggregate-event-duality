@@ -4,9 +4,11 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::patch::Patch;
 
+///
 /// A person event. The encapsulated map always contains exactly one person.
 /// The implementation was chosen to produce the desired json output
 /// <code>{ <person_id>: <person_data> }</code>.
+///
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct PersonEvent(HashMap<u32, Option<PersonPatch>>);
 
@@ -40,6 +42,7 @@ mod tests {
     use crate::domain::person_event::PersonEvent;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
+    use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
     pub fn test_person_event_values() {
@@ -82,17 +85,5 @@ mod tests {
         let person_event = PersonEvent::for_delete(1);
         let json_ref = r#"{"1":null}"#;
         serde_and_verify(&person_event, json_ref);
-    }
-
-    fn serde_and_verify(person_event_ref: &PersonEvent, json_ref: &str) {
-        // 1. Serialize person_map_ref and string-compare it to json_ref
-        let json = serde_json::to_string(&person_event_ref);
-        assert!(json.is_ok());
-        assert_eq!(json.unwrap(), String::from(json_ref));
-
-        // 2. Deserialize the serialized json and compare it with person_map_ref
-        let person_event: Result<PersonEvent, serde_json::Error> = serde_json::from_str(json_ref);
-        assert!(person_event.is_ok());
-        assert_eq!(person_event.unwrap(), *person_event_ref);
     }
 }
