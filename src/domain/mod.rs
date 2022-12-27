@@ -5,5 +5,4 @@ pub mod person_map;
 pub mod location_data;
 pub mod location_patch;
 pub mod location_event;
-pub mod location_event_builder;
 pub mod location_map;
