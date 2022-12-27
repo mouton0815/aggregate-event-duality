@@ -10,6 +10,8 @@ use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
+// TODO: Rename to PersonEventWriter?
+
 ///
 /// Writes events and revision for person changes and for that reason implements
 /// [AggregatorTrait](crate::aggregator::aggregator_trait::AggregatorTrait).
