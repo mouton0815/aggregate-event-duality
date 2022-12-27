@@ -17,7 +17,7 @@ pub struct LocationPatch {
 }
 
 impl LocationPatch {
-    fn new(total: Option<usize>, married: Option<usize>) -> Self {
+    pub fn new(total: Option<usize>, married: Option<usize>) -> Self {
         Self { total, married }
     }
 

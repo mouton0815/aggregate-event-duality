@@ -29,8 +29,9 @@ impl AggregatorTrait for LocationAggregator {
     fn insert(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
         if let Some(location) = person.location.as_ref() {
             // TODO: Select record for location (init of not exist)
-            let dummy = LocationData::new(0, 0);
+            let mut dummy = LocationData::new(0, 0);
             if let Some(patch) = LocationPatch::for_insert(&dummy, person) {
+                dummy.apply_patch(&patch);
                 // TODO: Derive record from patch and store it. Write event and revision.
             }
         }
@@ -38,12 +39,12 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn update(&mut self, tx: &Transaction, _: u32, person: &PersonData, patch: &PersonPatch) -> Result<()> {
-        // TODO: Implement
         if person.location.is_some() {
             let location = person.location.as_ref().unwrap();
             // TODO: Select record for location (must exist)
-            let dummy = LocationData::new(0, 0);
+            let mut dummy = LocationData::new(0, 0);
             if let Some(patch) = LocationPatch::for_update_old(&dummy, person, patch) {
+                dummy.apply_patch(&patch);
                 // TODO: Derive record from patch and store it. Write event and revision.
             }
         }
@@ -51,8 +52,9 @@ impl AggregatorTrait for LocationAggregator {
             // Location of person changed, increment counters of new location
             let location = patch.location.as_ref().unwrap();
             // TODO: Select record for location
-            let dummy = LocationData::new(0, 0);
+            let mut dummy = LocationData::new(0, 0);
             if let Some(patch) = LocationPatch::for_update_new(&dummy, person, patch) {
+                dummy.apply_patch(&patch);
                 // TODO: Derive record from patch and store it. Write event and revision.
             }
         }
@@ -62,8 +64,9 @@ impl AggregatorTrait for LocationAggregator {
     fn delete(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
         if let Some(location) = person.location.as_ref() {
             // TODO: Select record for location (must exist)
-            let dummy = LocationData::new(0, 0);
+            let mut dummy = LocationData::new(0, 0);
             if let Some(patch) = LocationPatch::for_delete(&dummy, person) {
+                dummy.apply_patch(&patch);
                 // TODO: Derive record from patch and store it. Write event and revision.
             }
         }
