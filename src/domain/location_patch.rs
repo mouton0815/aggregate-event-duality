@@ -52,13 +52,13 @@ impl LocationPatch {
                 // Location of person remains, adapt all counters except total
                 married = match patch.spouse_id {
                     Patch::Value(_) => Some(aggr.married + 1),
-                    Patch::Null => Self::checked_decrement(aggr.married, "married"),
+                    Patch::Null => Self::checked_decrement(aggr.married),
                     Patch::Absent => None
                 };
             } else {
                 // Location of person changed, decrement counters of old location
-                total = Self::checked_decrement(aggr.total, "total");
-                married = Self::checked_decrement_for(person.spouse_id, aggr.married, "married");
+                total = Self::checked_decrement(aggr.total);
+                married = Self::checked_decrement_for(person.spouse_id, aggr.married);
             }
         }
         if total.is_some() || married.is_some() {
@@ -100,8 +100,8 @@ impl LocationPatch {
         let mut total : Option<usize> = None;
         let mut married : Option<usize> = None;
         if person.location.is_some() { // Should be checked by the caller (could be an assertion)
-            total = Self::checked_decrement(aggr.total, "total");
-            married = Self::checked_decrement_for(person.spouse_id, aggr.married, "married");
+            total = Self::checked_decrement(aggr.total);
+            married = Self::checked_decrement_for(person.spouse_id, aggr.married);
         }
         if total.is_some() || married.is_some() {
             Some(Self::new(total, married))
@@ -110,18 +110,18 @@ impl LocationPatch {
         }
     }
 
-    fn checked_decrement(value: usize, name: &str) -> Option<usize> {
+    fn checked_decrement(value: usize) -> Option<usize> {
         if value == 0 {
-            warn!("LocationAggregate.{} is already 0, no not decrement", name);
+            warn!("Counter is already 0, do not decrement");
             None
         } else {
             Some(value - 1)
         }
     }
 
-    fn checked_decrement_for<T>(option: Option<T>, value: usize, name: &str) -> Option<usize> {
+    fn checked_decrement_for<T>(option: Option<T>, value: usize) -> Option<usize> {
         match option {
-            Some(_) => Self::checked_decrement(value, name),
+            Some(_) => Self::checked_decrement(value),
             None => None
         }
     }
