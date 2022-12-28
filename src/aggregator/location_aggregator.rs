@@ -35,6 +35,19 @@ impl LocationAggregator {
         })
     }
 
+    // TODO: Document method
+    fn update_or_delete(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
+        if patch.total.is_some() && patch.total.unwrap() == 0 {
+            LocationTable::delete(tx, name)?;
+            // TODO: Write event and revision
+        } else {
+            data.apply_patch(&patch);
+            LocationTable::upsert(tx, name, &data)?;
+            // TODO: Write event and revision
+        }
+        Ok(())
+    }
+
     fn write_event_and_revision(&mut self, tx: &Transaction, timestamp: u64, event: LocationEvent) -> Result<()> {
         let event = Self::stringify(event);
         let revision = LocationEventTable::insert(&tx, timestamp, event.as_str())?;
@@ -56,10 +69,10 @@ impl AggregatorTrait for LocationAggregator {
 
     fn insert(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
         if let Some(name) = person.location.as_ref() {
-            let mut location_data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_insert(&location_data, person) {
-                location_data.apply_patch(&patch);
-                LocationTable::upsert(tx, name, &location_data)?;
+            let mut data = Self::select_or_init(tx, name)?;
+            if let Some(patch) = LocationPatch::for_insert(&data, person) {
+                data.apply_patch(&patch);
+                LocationTable::upsert(tx, name, &data)?;
                 // TODO: Write event and revision
             }
         }
@@ -67,23 +80,24 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn update(&mut self, tx: &Transaction, _: u32, person: &PersonData, patch: &PersonPatch) -> Result<()> {
-        // TODO: If total == 0, send name:null event and delete location record
         if person.location.is_some() {
+            // This means that the person originally had a location.
+            // Now either the location of the person stays the same, then adapt all counters except total.
+            // Or the location of the person changes, then decrement then counters of old location.
             let name = person.location.as_ref().unwrap();
-            let mut location_data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_update_old(&location_data, person, patch) {
-                location_data.apply_patch(&patch);
-                LocationTable::upsert(tx, name, &location_data)?;
-                // TODO: Write event and revision
+            let data = Self::select_or_init(tx, name)?;
+            if let Some(patch) = LocationPatch::for_update_old(&data, person, patch) {
+                self.update_or_delete(tx, name, data, patch)?;
             }
         }
         if patch.location.is_value() {
-            // Location of person changed, increment counters of new location
+            // This means that the location of the person changed.
+            // Increment the counters of the new location.
             let name = patch.location.as_ref().unwrap();
-            let mut location_data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_update_new(&location_data, person, patch) {
-                location_data.apply_patch(&patch);
-                LocationTable::upsert(tx, name, &location_data)?;
+            let mut data = Self::select_or_init(tx, name)?;
+            if let Some(patch) = LocationPatch::for_update_new(&data, person, patch) {
+                data.apply_patch(&patch);
+                LocationTable::upsert(tx, name, &data)?;
                 // TODO: Write event and revision
             }
         }
@@ -91,12 +105,10 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn delete(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
-        // TODO: If total == 0, send name:null event and delete location record
         if let Some(name) = person.location.as_ref() {
-            let mut location_data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_delete(&location_data, person) {
-                location_data.apply_patch(&patch);
-                // TODO: Derive record from patch and store it. Write event and revision.
+            let data = Self::select_or_init(tx, name)?;
+            if let Some(patch) = LocationPatch::for_delete(&data, person) {
+                self.update_or_delete(tx, name, data, patch)?;
             }
         }
         Ok(())
