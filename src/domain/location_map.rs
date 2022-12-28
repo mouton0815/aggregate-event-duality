@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::person_map::PersonMap;
 
+// TODO: Deprecated
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct LocationMap(BTreeMap<String, PersonMap>);
 
