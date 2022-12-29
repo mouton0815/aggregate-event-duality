@@ -22,15 +22,16 @@ impl LocationPatch {
     }
 
     ///
-    /// Constructs a ``LocationPatch`` object reflecting changes related to the location of an inserted person
-    /// * aggr - the location aggregate
+    /// Constructs a ``LocationPatch`` object with changes on a ``LocationData`` object
+    /// after the insertion of a person.
+    /// * data - the location aggregate
     /// * person - the inserted person record
     /// Returns a ``LocationPatch`` object or ``None`` if no aggregate value changed.
     ///
-    pub fn for_insert(aggr: &LocationData, person: &PersonData) -> Option<Self> {
+    pub fn for_insert(data: &LocationData, person: &PersonData) -> Option<Self> {
         if person.location.is_some() { // Should be checked by the caller (could be an assertion)
-            let total = Some(aggr.total + 1);
-            let married = person.spouse_id.map(|_| aggr.married + 1);
+            let total = Some(data.total + 1);
+            let married = person.spouse_id.map(|_| data.married + 1);
             Some(Self::new(total, married))
         } else {
             None
@@ -38,51 +39,47 @@ impl LocationPatch {
     }
 
     ///
-    /// Constructs a ``LocationPatch`` object reflecting changes related to the old location of a person
-    /// * aggr - the location aggregate
+    /// Constructs a ``LocationPatch`` object with changes on a ``LocationData`` object
+    /// in case the location of the person is unchanged.
+    /// * data - the location aggregate
     /// * person - the person record _before_ the update
     /// * patch - the change set to be applied to the person record
     /// Returns a ``LocationPatch`` object or ``None`` if no aggregate value changed.
     ///
-    pub fn for_update_old(aggr: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
-        let mut total : Option<usize> = None;
+    pub fn for_update(data: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
         let mut married : Option<usize> = None;
-        if person.location.is_some() { // Should be checked by the caller (could be an assertion)
-            if patch.location.is_absent() {
-                // Location of person remains, adapt all counters except total
-                married = match patch.spouse_id {
-                    Patch::Value(_) => Some(aggr.married + 1),
-                    Patch::Null => Self::checked_decrement(aggr.married),
-                    Patch::Absent => None
-                };
-            } else {
-                // Location of person changed, decrement counters of old location
-                total = Self::checked_decrement(aggr.total);
-                married = Self::checked_decrement_for(person.spouse_id, aggr.married);
-            }
+        // Should be checked by the caller (could be an assertion):
+        if person.location.is_some() && patch.location.is_absent() {
+            // Location of person remains, adapt all counters except total
+            married = match patch.spouse_id {
+                Patch::Value(_) => Some(data.married + 1),
+                Patch::Null => Self::checked_decrement(data.married),
+                Patch::Absent => None
+            };
         }
-        if total.is_some() || married.is_some() {
-            Some(Self::new(total, married))
+        if married.is_some() {
+            Some(Self::new(None, married))
         } else {
             None
         }
     }
 
     ///
-    /// Constructs a ``LocationPatch`` object reflecting changes related to the new location of a person
-    /// * aggr - the location aggregate
+    /// Constructs a ``LocationPatch`` object with changes on the ``LocationData`` object
+    /// that represents the new location of a person after a location change.
+    /// * data - the location aggregate
     /// * person - the person record _before_ the update
     /// * patch - the change set to be applied to the person record
     /// Returns a ``LocationPatch`` object or ``None`` if no aggregate value changed.
     ///
-    pub fn for_update_new(aggr: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
+    pub fn for_change(data: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
         // Location of person changed, decrement counters of new location
         if patch.location.is_value() { // Should be checked by the caller (could be an assertion)
-            let total = Some(aggr.total + 1);
+            let total = Some(data.total + 1);
             let married = match patch.spouse_id {
-                Patch::Value(_) => Some(aggr.married + 1),
+                Patch::Value(_) => Some(data.married + 1),
                 Patch::Null => None,
-                Patch::Absent => person.spouse_id.map(|_| aggr.married + 1)
+                Patch::Absent => person.spouse_id.map(|_| data.married + 1)
             };
             Some(Self::new(total, married))
         } else {
@@ -91,17 +88,22 @@ impl LocationPatch {
     }
 
     ///
-    /// Constructs a ``LocationPatch`` object reflecting changes related to the location of a deleted person
-    /// * aggr - the location aggregate
+    /// Constructs a ``LocationPatch`` object with changes on a ``LocationData`` object
+    /// after the deletion of a person. This method is also used for updating the old
+    /// ``LocationData`` object if a person changed the location..
+    /// * data - the location aggregate
     /// * person - the deleted person record
     /// Returns a ``LocationPatch`` object or ``None`` if no aggregate value changed.
     ///
-    pub fn for_delete(aggr: &LocationData, person: &PersonData) -> Option<Self> {
+    pub fn for_delete(data: &LocationData, person: &PersonData) -> Option<Self> {
         let mut total : Option<usize> = None;
         let mut married : Option<usize> = None;
         if person.location.is_some() { // Should be checked by the caller (could be an assertion)
-            total = Self::checked_decrement(aggr.total);
-            married = Self::checked_decrement_for(person.spouse_id, aggr.married);
+            total = Self::checked_decrement(data.total);
+            married = match person.spouse_id {
+                Some(_) => Self::checked_decrement(data.married),
+                None => None
+            }
         }
         if total.is_some() || married.is_some() {
             Some(Self::new(total, married))
@@ -116,13 +118,6 @@ impl LocationPatch {
             None
         } else {
             Some(value - 1)
-        }
-    }
-
-    fn checked_decrement_for<T>(option: Option<T>, value: usize) -> Option<usize> {
-        match option {
-            Some(_) => Self::checked_decrement(value),
-            None => None
         }
     }
 }
@@ -183,190 +178,154 @@ mod tests {
     }
 
     //
-    // Tests for method for_update_old
+    // Tests for method for_update
     //
 
     #[test]
-    pub fn test_for_update_old_no_location() {
+    pub fn test_for_update_no_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(123));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_old_keep_location() {
+    pub fn test_for_update_keep_location_keep_spouse() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_old_keep_location_remove_spouse() {
+    pub fn test_for_update_keep_location_remove_spouse() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Null);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(None, Some(2))));
     }
 
     #[test]
-    pub fn test_for_update_old_keep_location_set_spouse() {
+    pub fn test_for_update_keep_location_remove_spouse_below_zeri() {
+        let aggr = LocationData::new(1, 0);
+        let person = PersonData::new("Hans", Some("Here"), Some(123));
+        let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Null);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
+        assert_eq!(l_patch, None);
+    }
+
+    #[test]
+    pub fn test_for_update_keep_location_set_spouse() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Value(123));
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(None, Some(4))));
     }
 
     #[test]
-    pub fn test_for_update_old_remove_location() {
+    pub fn test_for_update_remove_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
-        assert_eq!(l_patch, Some(LocationPatch::new(Some(0), Some(2))));
-    }
-
-    #[test]
-    pub fn test_for_update_old_remove_location_no_spouse() {
-        let aggr = LocationData::new(1, 3);
-        let person = PersonData::new("Hans", Some("Here"), None);
-        let p_patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
-        assert_eq!(l_patch, Some(LocationPatch::new(Some(0), None)));
-    }
-
-    #[test]
-    pub fn test_for_update_old_remove_location_set_spouse() {
-        let aggr = LocationData::new(1, 3);
-        let person = PersonData::new("Hans", Some("Here"), None);
-        let p_patch = PersonPatch::new(None, Patch::Null, Patch::Value(123));
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
-        assert_eq!(l_patch, Some(LocationPatch::new(Some(0), None)));
-    }
-
-    #[test]
-    pub fn test_for_update_old_remove_location_below_zero() {
-        let aggr = LocationData::new(0, 0);
-        let person = PersonData::new("Hans", Some("Here"), Some(123));
-        let p_patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_old_set_location() {
+    pub fn test_for_update_set_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(123));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_old_change_location() {
+    pub fn test_for_update_change_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
-        assert_eq!(l_patch, Some(LocationPatch::new(Some(0), Some(2))));
-    }
-
-    #[test]
-    pub fn test_for_update_old_change_location_no_spouse() {
-        let aggr = LocationData::new(1, 3);
-        let person = PersonData::new("Hans", Some("Here"), None);
-        let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
-        assert_eq!(l_patch, Some(LocationPatch::new(Some(0), None)));
-    }
-
-    #[test]
-    pub fn test_for_update_old_change_location_set_spouse() {
-        let aggr = LocationData::new(1, 3);
-        let person = PersonData::new("Hans", Some("Here"), None);
-        let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Value(123));
-        let l_patch = LocationPatch::for_update_old(&aggr, &person, &p_patch);
-        assert_eq!(l_patch, Some(LocationPatch::new(Some(0), None)));
+        let l_patch = LocationPatch::for_update(&aggr, &person, &p_patch);
+        assert_eq!(l_patch, None);
     }
 
     //
-    // Tests for method for_update_new
+    // Tests for method for_change
     //
 
     #[test]
-    pub fn test_for_update_new_no_location() {
+    pub fn test_for_change_no_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(123));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_new_keep_location() {
+    pub fn test_for_change_keep_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_new_remove_location() {
+    pub fn test_for_change_remove_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, None);
     }
 
     #[test]
-    pub fn test_for_update_new_set_location() {
+    pub fn test_for_change_set_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(123));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 
     #[test]
-    pub fn test_for_update_new_set_location_no_spouse() {
+    pub fn test_for_change_set_location_no_spouse() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, None);
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
-    pub fn test_for_update_new_set_location_remove_spouse() {
+    pub fn test_for_change_set_location_remove_spouse() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(124));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Null);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
-    pub fn test_for_update_new_change_location() {
+    pub fn test_for_change_change_location() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 
     #[test]
-    pub fn test_for_update_new_change_location_set_spouse() {
+    pub fn test_for_change_change_location_set_spouse() {
         let aggr = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Value(123));
-        let l_patch = LocationPatch::for_update_new(&aggr, &person, &p_patch);
+        let l_patch = LocationPatch::for_change(&aggr, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 

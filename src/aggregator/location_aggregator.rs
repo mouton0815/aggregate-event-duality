@@ -9,6 +9,7 @@ use crate::domain::location_event::LocationEvent;
 use crate::domain::location_patch::LocationPatch;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
+use crate::util::patch::Patch;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
 ///
@@ -33,6 +34,13 @@ impl LocationAggregator {
             Some(location_data) => location_data,
             None => LocationData::new(0, 0)
         })
+    }
+
+    fn upsert(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
+        data.apply_patch(&patch);
+        LocationTable::upsert(tx, name, &data)?;
+        // TODO: Write event and revision
+        Ok(())
     }
 
     // TODO: Document method
@@ -71,34 +79,36 @@ impl AggregatorTrait for LocationAggregator {
         if let Some(name) = person.location.as_ref() {
             let mut data = Self::select_or_init(tx, name)?;
             if let Some(patch) = LocationPatch::for_insert(&data, person) {
-                data.apply_patch(&patch);
-                LocationTable::upsert(tx, name, &data)?;
-                // TODO: Write event and revision
+                self.upsert(tx, name, data, patch)?;
             }
         }
         Ok(())
     }
 
     fn update(&mut self, tx: &Transaction, _: u32, person: &PersonData, patch: &PersonPatch) -> Result<()> {
-        if person.location.is_some() {
-            // This means that the person originally had a location.
-            // Now either the location of the person stays the same, then adapt all counters except total.
-            // Or the location of the person changes, then decrement then counters of old location.
-            let name = person.location.as_ref().unwrap();
+        if let Some(name) = person.location.as_ref() {
+            // The person had a location before the update - select the corresponding record.
             let data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_update_old(&data, person, patch) {
-                self.update_or_delete(tx, name, data, patch)?;
+            if patch.location.is_absent() {
+                // The location of the person stays the same.
+                // Increment or decrement the counters for all aggregate values, except "total".
+                if let Some(patch) = LocationPatch::for_update(&data, person, patch) {
+                    self.upsert(tx, name, data, patch)?;
+                }
+            } else {
+                // The location of the person changed.
+                // Decrement the counters of the old location or delete the location record.
+                if let Some(patch) = LocationPatch::for_delete(&data, person) {
+                    self.update_or_delete(tx, name, data, patch)?;
+                }
             }
         }
-        if patch.location.is_value() {
-            // This means that the location of the person changed.
+        if let Patch::Value(name) = patch.location.as_ref() {
+            // The location of the person changed.
             // Increment the counters of the new location.
-            let name = patch.location.as_ref().unwrap();
-            let mut data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_update_new(&data, person, patch) {
-                data.apply_patch(&patch);
-                LocationTable::upsert(tx, name, &data)?;
-                // TODO: Write event and revision
+            let data = Self::select_or_init(tx, name)?;
+            if let Some(patch) = LocationPatch::for_change(&data, person, patch) {
+                self.upsert(tx, name, data, patch)?;
             }
         }
         Ok(())
