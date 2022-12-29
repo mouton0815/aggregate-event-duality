@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
 use log::debug;
 use rusqlite::{Connection, OptionalExtension, params, Result, Row, Transaction};
 use crate::domain::location_data::LocationData;
+use crate::domain::location_map::LocationMap;
 
 const CREATE_LOCATION_TABLE : &'static str =
     "CREATE TABLE IF NOT EXISTS location (
@@ -24,9 +24,6 @@ const SELECT_LOCATIONS : &'static str =
     "SELECT name, total, married FROM location";
 
 pub struct LocationTable;
-
-// TODO: Should be encapsulated and moved to its own file in /domain
-type LocationMap = BTreeMap<String, LocationData>;
 
 impl LocationTable {
 
@@ -58,7 +55,7 @@ impl LocationTable {
         let mut location_map = LocationMap::new();
         for row in rows {
             let (name, location_data) = row?;
-            location_map.insert(name, location_data);
+            location_map.put(&name, location_data);
         }
         Ok(location_map)
     }
@@ -70,32 +67,6 @@ impl LocationTable {
             Ok(Self::row_to_location_data(row)?.1)
         }).optional()
     }
-
-    /*
-    pub fn select_all(tx: &Transaction) -> Result<LocationMap> {
-        debug!("Execute {}", SELECT_LOCATIONS);
-        let mut stmt = tx.prepare(SELECT_LOCATIONS)?;
-        let rows = stmt.query_map([], |row| {
-            Self::row_to_person_data(row) // TODO: Directly construct result map here? Or use cursor/iterator?
-        })?;
-        let mut location_map = LocationMap::new();
-        let mut last_location : Option<String> = None;
-        let mut person_map = PersonMap::new();
-        for row in rows {
-            let (location, person_id, person_data) = row?;
-            if last_location.is_some() && last_location.as_ref().unwrap() != &location {
-                location_map.put(last_location.unwrap().as_str(), person_map);
-                person_map = PersonMap::new();
-            }
-            person_map.put(person_id, person_data);
-            last_location = Some(location);
-        }
-        if person_map.len() > 0 {
-            location_map.put(last_location.unwrap().as_str(), person_map);
-        }
-        Ok(location_map)
-    }
-    */
 
     fn row_to_location_data(row: &Row) -> Result<(String, LocationData)> {
         Ok((row.get(0)?, LocationData {
@@ -180,130 +151,4 @@ mod tests {
             assert_eq!(location, location_data);
         }
     }
-
-    /*
-    use rusqlite::Connection;
-    use crate::database::location_table::LocationView;
-    use crate::database::person_table::PersonTable;
-    use crate::domain::location_map::LocationMap;
-    use crate::domain::person_data::PersonData;
-    use crate::domain::person_map::PersonMap;
-
-    #[test]
-    fn test_no_table() {
-        let mut conn = create_connection();
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        let result = LocationView::select_all(&tx.unwrap());
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_read_aggregate_for_no_entry() {
-        let mut conn = create_connection_and_table();
-        let result = read_locations(&mut conn);
-        assert_eq!(result, LocationMap::new());
-    }
-
-    #[test]
-    fn test_read_aggregate_for_no_location() {
-        let person = PersonData::new("Hans", None, None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let result = read_locations(&mut conn);
-        assert_eq!(result, LocationMap::new());
-    }
-
-    #[test]
-    fn test_read_aggregate_for_one() {
-        let person = PersonData::new("Hans", Some("Somewhere"), None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let mut person_map = PersonMap::new();
-        person_map.put(1, person);
-        let mut location_map = LocationMap::new();
-        location_map.put("Somewhere", person_map);
-
-        let result = read_locations(&mut conn);
-        assert_eq!(result, location_map);
-    }
-
-    #[test]
-    fn test_read_aggregate_for_one_batch() {
-        let person1 = PersonData::new("Hans", Some("Somewhere"), None);
-        let person2 = PersonData::new("Inge", Some("Somewhere"), None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person1).is_ok());
-        assert!(PersonTable::insert(&tx, &person2).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let mut person_map = PersonMap::new();
-        person_map.put(1, person1);
-        person_map.put(2, person2);
-        let mut location_map = LocationMap::new();
-        location_map.put("Somewhere", person_map);
-
-        let result = read_locations(&mut conn);
-        assert_eq!(result, location_map);
-    }
-
-
-    #[test]
-    fn test_read_aggregate_for_two_batches() {
-        let person1 = PersonData::new("Hans", Some("Somewhere"), None);
-        let person2 = PersonData::new("Inge", Some("Anywhere"), None);
-        let person3 = PersonData::new("Fred", Some("Somewhere"), None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person1).is_ok());
-        assert!(PersonTable::insert(&tx, &person2).is_ok());
-        assert!(PersonTable::insert(&tx, &person3).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let mut person_map1 = PersonMap::new();
-        let mut person_map2 = PersonMap::new();
-        person_map1.put(1, person1);
-        person_map2.put(2, person2);
-        person_map1.put(3, person3);
-        let mut location_map = LocationMap::new();
-        location_map.put("Somewhere", person_map1);
-        location_map.put("Anywhere", person_map2);
-
-        let result = read_locations(&mut conn);
-        assert_eq!(result, location_map);
-    }
-
-    fn create_connection() -> Connection {
-        let conn = Connection::open(":memory:");
-        assert!(conn.is_ok());
-        conn.unwrap()
-    }
-
-    fn create_connection_and_table() -> Connection {
-        let conn = create_connection();
-        assert!(PersonTable::create_table(&conn).is_ok());
-        conn
-    }
-
-    fn read_locations(conn: &mut Connection) -> LocationMap {
-        let tx = conn.transaction();
-        assert!(tx.is_ok());
-        let tx = tx.unwrap();
-        let result = LocationView::select_all(&tx);
-        assert!(tx.commit().is_ok());
-        assert!(result.is_ok());
-        result.unwrap()
-    }
-    */
 }

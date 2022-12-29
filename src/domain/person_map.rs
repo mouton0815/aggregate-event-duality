@@ -33,46 +33,40 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_person_map() {
-        let mut person_map = PersonMap::new();
-        person_map.put(1, PersonData{
+    pub fn test_put() {
+        let mut map = PersonMap::new();
+        map.put(1, PersonData{
             name: "Hans".to_string(),
             location: Some("Berlin".to_string()),
             spouse_id: Some(2)
         });
-        person_map.put(2, PersonData{
+        map.put(2, PersonData{
             name: "Inge".to_string(),
             location: Some("Berlin".to_string()),
             spouse_id: Some(1)
         });
 
         let json_ref = r#"{"1":{"name":"Hans","location":"Berlin","spouseId":2},"2":{"name":"Inge","location":"Berlin","spouseId":1}}"#;
-        serde_and_verify(&person_map, json_ref);
+        serde_and_verify(&map, json_ref);
     }
 
     #[test]
-    pub fn test_person_map_empty() {
-        let person_map = PersonMap::new();
+    pub fn test_empty() {
+        let map = PersonMap::new();
         let json_ref = r#"{}"#;
-        serde_and_verify(&person_map, json_ref);
+        serde_and_verify(&map, json_ref);
     }
 
     #[test]
-    pub fn test_person_map_api() {
+    pub fn test_get_and_len() {
         let person = PersonData{
             name: "Inge".to_string(),
             location: Some("Nowhere".to_string()),
             spouse_id: None
         };
-        let person_ref = PersonData{
-            name: "Inge".to_string(),
-            location: Some("Nowhere".to_string()),
-            spouse_id: None
-        };
-
-        let mut person_map = PersonMap::new();
-        person_map.put(5, person);
-        assert_eq!(person_map.len(), 1);
-        assert_eq!(person_map.get(5), &person_ref);
+        let mut map = PersonMap::new();
+        map.put(5, person.clone());
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get(5), &person);
     }
 }

@@ -7,6 +7,7 @@ use crate::aggregator::location_aggregator::LocationAggregator;
 use crate::aggregator::person_aggregator::PersonAggregator;
 use crate::database::person_table::PersonTable;
 use crate::database::revision_table::RevisionTable;
+use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
@@ -97,6 +98,13 @@ impl AggregatorFacade {
         Ok(result)
     }
 
+    pub fn get_locations(&mut self) -> Result<(u32, LocationMap)> {
+        let tx = self.connection.transaction()?;
+        let result = self.location_aggr.get_all(&tx)?;
+        tx.commit()?;
+        Ok(result)
+    }
+
     pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>> {
         let tx = self.connection.transaction()?;
         let events = self.person_aggr.get_events(&tx, from_revision)?;
@@ -104,9 +112,17 @@ impl AggregatorFacade {
         Ok(events)
     }
 
+    pub fn get_location_events(&mut self, from_revision: u32) -> Result<Vec<String>> {
+        let tx = self.connection.transaction()?;
+        let events = self.location_aggr.get_events(&tx, from_revision)?;
+        tx.commit()?;
+        Ok(events)
+    }
+
     pub fn delete_events(&mut self, created_before: Duration) -> Result<usize> {
         let tx = self.connection.transaction()?;
-        let count = self.person_aggr.delete_events(&tx, created_before)?;
+        let mut count = self.person_aggr.delete_events(&tx, created_before)?;
+        count += self.location_aggr.delete_events(&tx, created_before)?;
         tx.commit()?;
         if count > 0 {
             info!("Deleted {} outdated events", count);

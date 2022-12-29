@@ -6,6 +6,7 @@ use crate::database::location_table::LocationTable;
 use crate::database::revision_table::{RevisionTable, RevisionType};
 use crate::domain::location_data::LocationData;
 use crate::domain::location_event::LocationEvent;
+use crate::domain::location_map::LocationMap;
 use crate::domain::location_patch::LocationPatch;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_patch::PersonPatch;
@@ -72,7 +73,7 @@ impl LocationAggregator {
 }
 
 impl AggregatorTrait for LocationAggregator {
-    type Records = ();
+    type Records = LocationMap;
 
     fn create_tables(&mut self, connection: &Connection) -> Result<()> {
         LocationTable::create_table(connection)?;
@@ -129,8 +130,9 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Records)> {
-        // TODO: Implement
-        Ok((0, ()))
+        let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
+        let locations = LocationTable::select_all(&tx)?;
+        Ok((revision, locations))
     }
 
     fn get_events(&mut self, tx: &Transaction, from_revision: u32) -> Result<Vec<String>> {
