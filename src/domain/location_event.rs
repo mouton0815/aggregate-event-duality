@@ -20,9 +20,6 @@ impl LocationEvent {
 mod tests {
     use crate::domain::location_event::LocationEvent;
     use crate::domain::location_patch::LocationPatch;
-    use crate::domain::person_data::PersonData;
-    use crate::domain::person_patch::PersonPatch;
-    use crate::util::patch::Patch;
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]

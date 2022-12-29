@@ -147,4 +147,273 @@ impl AggregatorTrait for LocationAggregator {
 
 #[cfg(test)]
 mod tests {
+    use rusqlite::{Connection, Result, Transaction};
+    use crate::aggregator::aggregator_trait::AggregatorTrait;
+    use crate::aggregator::location_aggregator::LocationAggregator;
+    use crate::database::event_table::LocationEventTable;
+    use crate::database::location_table::LocationTable;
+    use crate::database::revision_table::{RevisionTable, RevisionType};
+    use crate::domain::location_data::LocationData;
+    use crate::domain::person_data::PersonData;
+    use crate::domain::person_patch::PersonPatch;
+    use crate::util::patch::Patch;
+    use crate::util::timestamp::tests::IncrementalTimestamp;
+
+    //
+    // Test aggregation functions
+    //
+
+    #[test]
+    pub fn test_insert() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("here"), Some(123));
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 1)));
+        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_keep_location_keep_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("here"), Some(123));
+        let patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 1)));
+        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#]); // No update event
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_keep_location_set_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("here"), None);
+        let patch = PersonPatch::new(None, Patch::Absent, Patch::Value(123));
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 1)));
+        check_events(&tx, &[r#"{"here":{"total":1}}"#, r#"{"here":{"married":1}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_keep_location_delete_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("here"), Some(123));
+        let patch = PersonPatch::new(None, Patch::Absent, Patch::Null);
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 0)));
+        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#, r#"{"here":{"married":0}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_set_location_keep_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", None, Some(123));
+        let patch = PersonPatch::new(None, Patch::Value("here"), Patch::Absent);
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 1)));
+        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_set_location_set_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", None, None);
+        let patch = PersonPatch::new(None, Patch::Value("here"), Patch::Value(123));
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 1)));
+        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_set_location_delete_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", None, Some(123));
+        let patch = PersonPatch::new(None, Patch::Value("here"), Patch::Null);
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 0)));
+        check_events(&tx, &[r#"{"here":{"total":1}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_remove_location_keep_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("here"), None);
+        let person2 = PersonData::new("Inge", Some("here"), Some(456));
+        let patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
+        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
+        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
+        assert!(aggregator.update(&tx, 2, &person2, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 0)));
+        check_events(&tx, &[
+            r#"{"here":{"total":1}}"#, // TODO: Should initial value of "married" be 0 ?
+            r#"{"here":{"total":2,"married":1}}"#,
+            r#"{"here":{"total":1,"married":0}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_remove_location_remove_spouse() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("here"), None);
+        let person2 = PersonData::new("Inge", Some("here"), Some(456));
+        let patch = PersonPatch::new(None, Patch::Null, Patch::Null);
+        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
+        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
+        assert!(aggregator.update(&tx, 2, &person2, &patch).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 0)));
+        check_events(&tx, &[
+            r#"{"here":{"total":1}}"#, // TODO: Should initial value of "married" be 0 ?
+            r#"{"here":{"total":2,"married":1}}"#,
+            r#"{"here":{"total":1,"married":0}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_update_remove_last_location() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("here"), Some(123));
+        let patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        check_record(&tx, "here", None);
+        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#, r#"{"here":null}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_delete() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("here"), None);
+        let person2 = PersonData::new("Inge", Some("here"), Some(123));
+        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
+        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
+        assert!(aggregator.delete(&tx, 2, &person2).is_ok());
+
+        check_record(&tx, "here", Some(LocationData::new(1, 0)));
+        check_events(&tx, &[
+            r#"{"here":{"total":1}}"#,
+            r#"{"here":{"total":2,"married":1}}"#,
+            r#"{"here":{"total":1,"married":0}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_delete_last() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+        let mut aggregator = create_aggregator();
+
+        let person = PersonData::new("Hans", Some("here"), Some(123));
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.delete(&tx, 1, &person).is_ok());
+
+        check_record(&tx, "here", None);
+        check_events(&tx, &[
+            r#"{"here":{"total":1,"married":1}}"#,
+            r#"{"here":null}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    //
+    // Helper functions for test
+    //
+
+    fn create_aggregator() -> LocationAggregator {
+        let timestamp = IncrementalTimestamp::new();
+        LocationAggregator::new_internal(timestamp)
+    }
+
+    fn create_connection() -> Connection {
+        let connection = Connection::open(":memory:");
+        assert!(connection.is_ok());
+        let connection = connection.unwrap();
+        assert!(LocationTable::create_table(&connection).is_ok());
+        assert!(LocationEventTable::create_table(&connection).is_ok());
+        assert!(RevisionTable::create_table(&connection).is_ok());
+        connection
+    }
+
+    fn check_record(tx: &Transaction, name: &str, loc_ref: Option<LocationData>) {
+        let loc_res = LocationTable::select_by_name(&tx, name);
+        assert!(loc_res.is_ok());
+        let loc_res = loc_res.unwrap();
+        assert_eq!(loc_res, loc_ref);
+    }
+
+    fn check_events(tx: &Transaction, events_ref: &[&str]) {
+        compare_revision(tx, RevisionType::LOCATION, events_ref.len());
+        compare_events(LocationEventTable::read(tx, 0), events_ref);
+    }
+
+    fn compare_revision(tx: &Transaction, revision_type: RevisionType, revision_ref: usize) {
+        let revision = RevisionTable::read(&tx, revision_type);
+        assert!(revision.is_ok());
+        assert_eq!(revision.unwrap(), revision_ref as u32);
+    }
+
+    fn compare_events(events: Result<Vec<String>>, events_ref: &[&str]) {
+        assert!(events.is_ok());
+        let events = events.unwrap();
+        assert_eq!(events.len(), events_ref.len());
+        for (index, &event_ref) in events_ref.iter().enumerate() {
+            let event = events.get(index);
+            assert!(event.is_some());
+            let event = event.unwrap();
+            assert_eq!(event, event_ref);
+        }
+    }
 }

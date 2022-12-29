@@ -147,7 +147,7 @@ mod tests {
 
         for (_, &ref_location) in ref_locations.iter().enumerate() {
             let (name, location_data) = ref_location;
-            let location = locations.get(name).unwrap();
+            let location = locations.get(name);
             assert_eq!(location, location_data);
         }
     }
