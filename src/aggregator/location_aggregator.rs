@@ -39,25 +39,29 @@ impl LocationAggregator {
     fn upsert(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
         data.apply_patch(&patch);
         LocationTable::upsert(tx, name, &data)?;
-        // TODO: Write event and revision
-        Ok(())
+        let event = LocationEvent::new(name, Some(patch));
+        self.write_event_and_revision(tx, event)
     }
 
     // TODO: Document method
     fn update_or_delete(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
+        // If after an update or delete the attribute "total" is 0, then delete the corresponding
+        // location record and write an event that indicates deletion, i.e. { <location>: null }.
+        let event : LocationEvent;
         if patch.total.is_some() && patch.total.unwrap() == 0 {
             LocationTable::delete(tx, name)?;
-            // TODO: Write event and revision
+            event = LocationEvent::new(name, None);
         } else {
             data.apply_patch(&patch);
             LocationTable::upsert(tx, name, &data)?;
-            // TODO: Write event and revision
+            event = LocationEvent::new(name, Some(patch));
         }
-        Ok(())
+        self.write_event_and_revision(tx, event)
     }
 
-    fn write_event_and_revision(&mut self, tx: &Transaction, timestamp: u64, event: LocationEvent) -> Result<()> {
+    fn write_event_and_revision(&mut self, tx: &Transaction, event: LocationEvent) -> Result<()> {
         let event = Self::stringify(event);
+        let timestamp = self.timestamp.as_secs();
         let revision = LocationEventTable::insert(&tx, timestamp, event.as_str())?;
         RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)
     }
@@ -77,7 +81,7 @@ impl AggregatorTrait for LocationAggregator {
 
     fn insert(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
         if let Some(name) = person.location.as_ref() {
-            let mut data = Self::select_or_init(tx, name)?;
+            let data = Self::select_or_init(tx, name)?;
             if let Some(patch) = LocationPatch::for_insert(&data, person) {
                 self.upsert(tx, name, data, patch)?;
             }
