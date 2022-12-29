@@ -37,12 +37,7 @@ const SELECT_PERSON : &'static str = formatcp!(
     PERSON_TABLE
 );
 
-const EXISTS_LOCATION: &'static str = formatcp!(
-    "SELECT 1 FROM {} WHERE location = ?",
-    PERSON_TABLE
-);
 
-// This is just a namespace to keep method names short
 pub struct PersonTable;
 
 impl PersonTable {
@@ -115,13 +110,6 @@ impl PersonTable {
         stmt.query_row([person_id], |row | {
             Ok(Self::row_to_person_data(row)?.1)
         })
-    }
-
-    pub fn exists_location(tx: &Transaction, location: &str) -> Result<bool> {
-        debug!("Execute\n{} with {}", EXISTS_LOCATION, location);
-        let mut stmt = tx.prepare(EXISTS_LOCATION)?;
-        let mut rows = stmt.query([location])?;
-        match rows.next()? { Some(_) => Ok(true), None => Ok(false) }
     }
 
     fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
@@ -217,40 +205,6 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), false);
         assert!(tx.commit().is_ok());
-    }
-
-    #[test]
-    fn test_read_with_location_none() {
-        let person = PersonData::new("Hans", Some("Germany"), Some(123));
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let tx = conn.transaction().unwrap();
-        let result = PersonTable::exists_location(&tx, "Spain");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), false);
-    }
-
-    #[test]
-    fn test_read_with_location_some() {
-        let person1 = PersonData::new("Hans", Some("Spain"), None);
-        let person2 = PersonData::new("Inge", Some("Italy"), None);
-        let person3 = PersonData::new("Fred", Some("Spain"), None);
-
-        let mut conn = create_connection_and_table();
-        let tx = conn.transaction().unwrap();
-        assert!(PersonTable::insert(&tx, &person1).is_ok());
-        assert!(PersonTable::insert(&tx, &person2).is_ok());
-        assert!(PersonTable::insert(&tx, &person3).is_ok());
-        assert!(tx.commit().is_ok());
-
-        let tx = conn.transaction().unwrap();
-        let result = PersonTable::exists_location(&tx, "Spain");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), true);
     }
 
     fn create_connection_and_table() -> Connection {

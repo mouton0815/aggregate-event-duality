@@ -11,7 +11,6 @@ use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::deletion_scheduler::DeletionTask;
-use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
 // TODO: Rename to PersonProcessor?
 
@@ -76,6 +75,7 @@ impl AggregatorFacade {
         let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
+                PersonTable::delete(&tx, person_id)?;
                 self.person_aggr.delete(&tx, person_id, &before)?;
                 self.location_aggr.delete(&tx, person_id, &before)?;
                 tx.commit()?;
