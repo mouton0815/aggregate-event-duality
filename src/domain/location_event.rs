@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::location_patch::LocationPatch;
 
-/// A location event. The encapsulated map always contains one or two ``LocationPatch`` objects.
+/// A location event. The encapsulated map always contains one or two
+/// [LocationPatch](crate::domain::location_patch::LocationPatch) objects.
 /// The implementation was chosen to produce the desired json output
 /// <code>{ <location>: <location_data> }</code>.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
