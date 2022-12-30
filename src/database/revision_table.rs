@@ -1,4 +1,3 @@
-use const_format::formatcp;
 use log::debug;
 use rusqlite::{Connection, params, Result, Transaction};
 
@@ -7,29 +6,21 @@ pub enum RevisionType {
     LOCATION = 2
 }
 
-const REVISION_TABLE: &'static str = "revision";
-
 // The tableId field denotes the corresponding aggregate tables
 // e.g. RevisionType::PERSON = 1 => "person_aggregate"
-const CREATE_REVISION_TABLE: &'static str = formatcp!(
-    "CREATE TABLE IF NOT EXISTS {} (
+const CREATE_REVISION_TABLE: &'static str =
+    "CREATE TABLE IF NOT EXISTS revision (
         tableId INTEGER NOT NULL PRIMARY KEY,
         revision INTEGER NOT NULL
-    )",
-    REVISION_TABLE
-);
+    )";
 
-const UPSERT_REVISION: &'static str = formatcp!(
-    "INSERT INTO {} (tableId, revision) VALUES (?, ?)
+const UPSERT_REVISION: &'static str =
+    "INSERT INTO revision (tableId, revision) VALUES (?, ?)
       ON CONFLICT(tableId) DO
-      UPDATE SET revision = excluded.revision",
-    REVISION_TABLE
-);
+      UPDATE SET revision = excluded.revision";
 
-const SELECT_REVISION : &'static str = formatcp!(
-    "SELECT revision FROM {} WHERE tableId = ?",
-    REVISION_TABLE
-);
+const SELECT_REVISION : &'static str =
+    "SELECT revision FROM revision WHERE tableId = ?";
 
 // This is just a namespace to keep method names short
 pub struct RevisionTable;

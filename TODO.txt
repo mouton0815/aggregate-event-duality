@@ -13,11 +13,9 @@
 [ ] Node.js consumer
 [ ] Apply Patch changes to JsonTernary. Publish JsonTernary. Import JsonTernary instead of Patch (use type alias)
 [x] Remove ON CONFLICT from person table as conflicts cannot happen
-[ ] Remove location stuff - this means:
-    [ ] Simplify event_table.js
-    [ ] Remove *many* tests in aggregator.js and friends
+[ ] Migrate location stuff to location statistics
 [ ] Rename project to [rust-]stream-table-duality
-[ ] Create "TransactionFacade" that wraps the aggregator
+[ ] Create "TransactionFacade" that wraps the aggregators
 [ ] Rename server to processor? (if so, also change README.md incl figures)
 [x] Move aggregator and scheduler to subdir again (but which?)
 [x] Move Fetcher and Worker implementations to separate files (and then make pgk "util" private again)

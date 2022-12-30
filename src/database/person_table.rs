@@ -1,41 +1,28 @@
-use const_format::formatcp;
 use log::{debug, error};
 use rusqlite::{Connection, Error, OptionalExtension, params, Result, Row, ToSql, Transaction};
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 
-pub const PERSON_TABLE: &'static str = "person";
-
-const CREATE_PERSON_TABLE : &'static str = formatcp!(
-    "CREATE TABLE IF NOT EXISTS {} (
+const CREATE_PERSON_TABLE : &'static str =
+    "CREATE TABLE IF NOT EXISTS person (
         personId INTEGER NOT NULL PRIMARY KEY,
         name TEXT NOT NULL,
         location TEXT,
         spouseId INTEGER
-    )",
-    PERSON_TABLE
-);
+    )";
 
-const INSERT_PERSON : &'static str = formatcp!(
-    "INSERT INTO {} (name, location, spouseId) VALUES (?, ?, ?)",
-    PERSON_TABLE
-);
+const INSERT_PERSON : &'static str =
+    "INSERT INTO person (name, location, spouseId) VALUES (?, ?, ?)";
 
-const DELETE_PERSON : &'static str = formatcp!(
-    "DELETE FROM {} WHERE personId = ?",
-    PERSON_TABLE
-);
+const DELETE_PERSON : &'static str =
+    "DELETE FROM person WHERE personId = ?";
 
-const SELECT_PERSONS : &'static str = formatcp!(
-    "SELECT personId, name, location, spouseId FROM {}",
-    PERSON_TABLE
-);
+const SELECT_PERSONS : &'static str =
+    "SELECT personId, name, location, spouseId FROM person";
 
-const SELECT_PERSON : &'static str = formatcp!(
-    "SELECT personId, name, location, spouseId FROM {} WHERE personId = ?",
-    PERSON_TABLE
-);
+const SELECT_PERSON : &'static str =
+    "SELECT personId, name, location, spouseId FROM person WHERE personId = ?";
 
 
 pub struct PersonTable;
@@ -73,7 +60,7 @@ impl PersonTable {
             error!("Do not run update query because all non-id values are missing");
             return Err(Error::InvalidParameterCount(0, 5));
         }
-        let query = format!("UPDATE {} SET {} WHERE personId=?", PERSON_TABLE, columns.join(",").as_str());
+        let query = format!("UPDATE person SET {} WHERE personId=?", columns.join(",").as_str());
         values.push(&person_id);
         debug!("Execute\n{}\nwith: {:?}", query, person);
         tx.execute(query.as_str(), values.as_slice())?;
