@@ -76,7 +76,21 @@ pub async fn get_persons(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, 
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR))) // TODO: Better errors
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+        }
+    }
+}
+
+pub async fn get_locations(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, Infallible> {
+    let mut aggregator = aggregator.lock().unwrap();
+    return match aggregator.get_locations() {
+        Ok(result) => {
+            let (revision, locations) = result;
+            Ok(Box::new(reply::with_header(reply::json(&locations), "X-From-Revision", revision)))
+        },
+        Err(error) => {
+            let message = ErrorResult{ error: error.to_string() };
+            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
         }
     }
 }
