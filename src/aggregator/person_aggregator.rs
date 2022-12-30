@@ -85,7 +85,7 @@ impl AggregatorTrait for PersonAggregator {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::time::Duration;
     use rusqlite::{Connection, Result, Transaction};
     use crate::aggregator::aggregator_trait::AggregatorTrait;
@@ -275,13 +275,15 @@ mod tests {
         compare_events(PersonEventTable::read(tx, 0), events_ref);
     }
 
-    fn compare_revision(tx: &Transaction, revision_type: RevisionType, revision_ref: usize) {
+    // Function is also used by LocationAggregator tests
+    pub fn compare_revision(tx: &Transaction, revision_type: RevisionType, revision_ref: usize) {
         let revision = RevisionTable::read(&tx, revision_type);
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), revision_ref as u32);
     }
 
-    fn compare_events(events: Result<Vec<String>>, events_ref: &[&str]) {
+    // Function is also used by LocationAggregator tests
+    pub fn compare_events(events: Result<Vec<String>>, events_ref: &[&str]) {
         assert!(events.is_ok());
         let events = events.unwrap();
         assert_eq!(events.len(), events_ref.len());

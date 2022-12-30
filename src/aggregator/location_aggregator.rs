@@ -161,6 +161,7 @@ mod tests {
     use rusqlite::{Connection, Result, Transaction};
     use crate::aggregator::aggregator_trait::AggregatorTrait;
     use crate::aggregator::location_aggregator::LocationAggregator;
+    use crate::aggregator::person_aggregator::tests::{compare_events, compare_revision};
     use crate::database::event_table::LocationEventTable;
     use crate::database::location_table::LocationTable;
     use crate::database::revision_table::{RevisionTable, RevisionType};
@@ -399,23 +400,5 @@ mod tests {
     fn check_events(tx: &Transaction, events_ref: &[&str]) {
         compare_revision(tx, RevisionType::LOCATION, events_ref.len());
         compare_events(LocationEventTable::read(tx, 0), events_ref);
-    }
-
-    fn compare_revision(tx: &Transaction, revision_type: RevisionType, revision_ref: usize) {
-        let revision = RevisionTable::read(&tx, revision_type);
-        assert!(revision.is_ok());
-        assert_eq!(revision.unwrap(), revision_ref as u32);
-    }
-
-    fn compare_events(events: Result<Vec<String>>, events_ref: &[&str]) {
-        assert!(events.is_ok());
-        let events = events.unwrap();
-        assert_eq!(events.len(), events_ref.len());
-        for (index, &event_ref) in events_ref.iter().enumerate() {
-            let event = events.get(index);
-            assert!(event.is_some());
-            let event = event.unwrap();
-            assert_eq!(event, event_ref);
-        }
     }
 }
