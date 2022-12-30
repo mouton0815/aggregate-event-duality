@@ -10,8 +10,15 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 ///
 /// Note that for skipping, the corresponding field must be annotated with
 /// ```
-/// #[serde(default)]
-/// #[serde(skip_serializing_if = "Patch::is_absent")]
+/// use serde::{Deserialize, Serialize};
+/// use aggregate_event_duality::util::patch::Patch;
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Example {
+///     #[serde(default)]
+///     #[serde(skip_serializing_if = "Patch::is_absent")]
+///     field: Patch<String>
+/// }
 /// ```
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub enum Patch<T> {
