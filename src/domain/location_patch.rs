@@ -41,7 +41,8 @@ impl LocationPatch {
     pub fn for_insert(data: &LocationData, person: &PersonData) -> Option<Self> {
         if person.location.is_some() { // Should be checked by the caller (could be an assertion)
             let total = Some(data.total + 1);
-            let married = person.spouse_id.map(|_| data.married + 1);
+            let married = Self::optional_increment(data.married, person.spouse_id, data.total);
+            // ... further updates of data fields here ...
             Some(Self::new(total, married))
         } else {
             None
@@ -61,11 +62,8 @@ impl LocationPatch {
         // Should be checked by the caller (could be an assertion):
         if person.location.is_some() && patch.location.is_absent() {
             // Location of person remains, adapt all counters except total
-            married = match patch.spouse_id {
-                Patch::Value(_) => Some(data.married + 1),
-                Patch::Null => Self::checked_decrement(data.married),
-                Patch::Absent => None
-            };
+            married = Self::conditional_update(data.married, patch.spouse_id);
+            // ... further updates of data fields here ...
         }
         if married.is_some() {
             Some(Self::new(None, married))
@@ -86,11 +84,8 @@ impl LocationPatch {
         // Location of person changed, decrement counters of new location
         if patch.location.is_value() { // Should be checked by the caller (could be an assertion)
             let total = Some(data.total + 1);
-            let married = match patch.spouse_id {
-                Patch::Value(_) => Some(data.married + 1),
-                Patch::Null => None,
-                Patch::Absent => person.spouse_id.map(|_| data.married + 1)
-            };
+            let married = Self::conditional_increment(data.married, person.spouse_id, patch.spouse_id, data.total);
+            // ... further updates of data fields here ...
             Some(Self::new(total, married))
         } else {
             None
@@ -110,15 +105,48 @@ impl LocationPatch {
         let mut married : Option<usize> = None;
         if person.location.is_some() { // Should be checked by the caller (could be an assertion)
             total = Self::checked_decrement(data.total);
-            married = match person.spouse_id {
-                Some(_) => Self::checked_decrement(data.married),
-                None => None
-            }
+            married = Self::optional_decrement(data.married, person.spouse_id);
+            // ... further updates of data fields here ...
         }
         if total.is_some() || married.is_some() {
             Some(Self::new(total, married))
         } else {
             None
+        }
+    }
+
+    fn conditional_update<T>(value: usize, patch: Patch<T>) -> Option<usize> {
+        match patch {
+            Patch::Value(_) => Some(value + 1),
+            Patch::Null => Self::checked_decrement(value),
+            Patch::Absent => None
+        }
+    }
+
+    fn conditional_increment<T>(value: usize, option: Option<T>, patch: Patch<T>, total: usize) -> Option<usize> {
+        match patch {
+            Patch::Value(_) => Some(value + 1),
+            Patch::Null => if total == 0 { Some(value) } else { None },
+            Patch::Absent => Self::optional_increment(value, option, total)
+        }
+    }
+
+    // Computes the value of a patch value depending on a person attribute ``option``.
+    // If the attribute is set, the patch value is incremented. Otherwise, this method
+    // checks if ``total`` is 0. This indicates an insertion into the location table,
+    // and so the current ``value`` is transmitted. Otherwise, ``None``is returned,
+    // because the current ``value`` is already known at receiver side.
+    fn optional_increment<T>(value: usize, option: Option<T>, total: usize) -> Option<usize> {
+        match option {
+            Some(_) => Some(value + 1),
+            None => if total == 0 { Some(value) } else { None }
+        }
+    }
+
+    fn optional_decrement<T>(value: usize, option: Option<T>) -> Option<usize> {
+        match option {
+            Some(_) => Self::checked_decrement(value),
+            None => None
         }
     }
 
@@ -177,6 +205,14 @@ mod tests {
         let person = PersonData::new("Hans", Some("Here"), None);
         let patch = LocationPatch::for_insert(&loc, &person);
         assert_eq!(patch, Some(LocationPatch::new(Some(2), None)));
+    }
+
+    #[test]
+    pub fn test_for_insert_initial_no_spouse() {
+        let loc = LocationData::new(0, 0);
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let patch = LocationPatch::for_insert(&loc, &person);
+        assert_eq!(patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }
 
     #[test]
@@ -313,6 +349,15 @@ mod tests {
     }
 
     #[test]
+    pub fn test_for_change_set_location_initial_no_spouse() {
+        let loc = LocationData::new(0, 0);
+        let person = PersonData::new("Hans", None, None);
+        let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
+        let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
+        assert_eq!(l_patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
+    }
+
+    #[test]
     pub fn test_for_change_set_location_remove_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(124));
@@ -322,7 +367,25 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_change_location() {
+    pub fn test_for_change_set_location_initial_remove_spouse() {
+        let loc = LocationData::new(0, 0);
+        let person = PersonData::new("Hans", None, Some(124));
+        let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Null);
+        let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
+        assert_eq!(l_patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
+    }
+
+    #[test]
+    pub fn test_for_change_alter_location_no_spouse() {
+        let loc = LocationData::new(1, 3);
+        let person = PersonData::new("Hans", Some("Here"), None);
+        let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
+        let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
+        assert_eq!(l_patch, Some(LocationPatch::new(Some(2), None)));
+    }
+
+    #[test]
+    pub fn test_for_change_alter_location_keep_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
@@ -331,12 +394,31 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_change_location_set_spouse() {
+    pub fn test_for_change_alter_location_set_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Value(123));
         let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(2), Some(4))));
+    }
+
+    #[test]
+    pub fn test_for_change_alter_location_remove_spouse() {
+        let loc = LocationData::new(1, 3);
+        let person = PersonData::new("Hans", Some("Here"), Some(123));
+        let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Null);
+        let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
+        assert_eq!(l_patch, Some(LocationPatch::new(Some(2), None)));
+    }
+
+    #[test]
+    pub fn test_for_change_alter_location_initial_remove_spouse() {
+        let loc = LocationData::new(0, 0);
+        let person = PersonData::new("Hans", Some("Here"), Some(123));
+        let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Null);
+        // TODO: Shouldn't there be two patches, one for old, one for new?
+        let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
+        assert_eq!(l_patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }
 
     //

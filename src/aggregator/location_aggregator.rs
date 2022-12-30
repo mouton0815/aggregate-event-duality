@@ -175,32 +175,46 @@ mod tests {
     //
 
     // Runs LocationAggregator::insert() for variants of input data
-    fn test_insert(person: PersonData, record_ref: Option<LocationData>, event_ref: &str) {
+    fn test_insert(persons: &[PersonData], record_ref: Option<LocationData>, events_ref: &[&str]) {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
         let mut aggregator = create_aggregator();
 
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        for person in persons {
+            assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        }
 
         check_record(&tx, "here", record_ref);
-        check_events(&tx, &[event_ref]);
+        check_events(&tx, events_ref);
         assert!(tx.commit().is_ok());
     }
 
     #[test]
     pub fn test_insert_with_spouse() {
         test_insert(
-            PersonData::new("Hans", Some("here"), Some(123)),
+            &[PersonData::new("Hans", Some("here"), Some(123))],
             Some(LocationData::new(1, 1)),
-            r#"{"here":{"total":1,"married":1}}"#);
+            &[r#"{"here":{"total":1,"married":1}}"#]);
     }
 
     #[test]
     pub fn test_insert_no_spouse() {
         test_insert(
-            PersonData::new("Hans", Some("here"), None),
+            &[PersonData::new("Hans", Some("here"), None)],
             Some(LocationData::new(1, 0)),
-            r#"{"here":{"total":1}}"#); // TODO: Should initial value of "married" be 0 ?
+            &[r#"{"here":{"total":1,"married":0}}"#]);
+    }
+
+    #[test]
+    pub fn test_insert_twice_no_spouse() {
+        test_insert(
+            &[
+                PersonData::new("Hans", Some("here"), None),
+                PersonData::new("Inge", Some("here"), None)],
+            Some(LocationData::new(2, 0)),
+            &[
+                r#"{"here":{"total":1,"married":0}}"#,
+                r#"{"here":{"total":2}}"#]);
     }
 
     // Runs LocationAggregator::insert() followed by LocationAggregator::update() for variants of input data
@@ -235,7 +249,7 @@ mod tests {
             PersonPatch::new(None, Patch::Absent, Patch::Value(123)),
             Some(LocationData::new(1, 1)),
             &[
-                r#"{"here":{"total":1}}"#,
+                r#"{"here":{"total":1,"married":0}}"#,
                 r#"{"here":{"married":1}}"#]);
     }
 
@@ -274,7 +288,7 @@ mod tests {
             &[PersonData::new("Hans", None, Some(123))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
-            &[r#"{"here":{"total":1}}"#]);
+            &[r#"{"here":{"total":1,"married":0}}"#]);
     }
 
     #[test]
@@ -286,7 +300,7 @@ mod tests {
             PersonPatch::new(None, Patch::Null, Patch::Absent),
             Some(LocationData::new(1, 0)),
             &[
-                r#"{"here":{"total":1}}"#, // TODO: Should initial value of "married" be 0 ?
+                r#"{"here":{"total":1,"married":0}}"#,
                 r#"{"here":{"total":2,"married":1}}"#,
                 r#"{"here":{"total":1,"married":0}}"#]);
     }
@@ -300,7 +314,7 @@ mod tests {
             PersonPatch::new(None, Patch::Null, Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
-                r#"{"here":{"total":1}}"#, // TODO: Should initial value of "married" be 0 ?
+                r#"{"here":{"total":1,"married":0}}"#,
                 r#"{"here":{"total":2,"married":1}}"#,
                 r#"{"here":{"total":1,"married":0}}"#]);
      }
@@ -341,7 +355,7 @@ mod tests {
             ],
             Some(LocationData::new(1, 0)),
             &[
-                r#"{"here":{"total":1}}"#,
+                r#"{"here":{"total":1,"married":0}}"#,
                 r#"{"here":{"total":2,"married":1}}"#,
                 r#"{"here":{"total":1,"married":0}}"#]);
     }
