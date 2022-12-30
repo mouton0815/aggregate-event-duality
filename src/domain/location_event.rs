@@ -1,17 +1,17 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::location_patch::LocationPatch;
 
-/// A location event. The encapsulated map always contains one or two
-/// [LocationPatch](crate::domain::location_patch::LocationPatch) objects.
+/// A location event. The encapsulated map always contains exactly one
+/// [LocationPatch](crate::domain::location_patch::LocationPatch) object.
 /// The implementation was chosen to produce the desired json output
 /// <code>{ <location>: <location_data> }</code>.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct LocationEvent(BTreeMap<String, Option<LocationPatch>>);
+pub struct LocationEvent(HashMap<String, Option<LocationPatch>>);
 
 impl LocationEvent {
     pub fn new(location: &str, patch: Option<LocationPatch>) -> Self {
-        let mut map = BTreeMap::new();
+        let mut map = HashMap::new();
         map.insert(location.to_string(), patch);
         Self{ 0: map }
     }

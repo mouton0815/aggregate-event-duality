@@ -158,7 +158,7 @@ impl AggregatorTrait for LocationAggregator {
 
 #[cfg(test)]
 mod tests {
-    use rusqlite::{Connection, Result, Transaction};
+    use rusqlite::{Connection, Transaction};
     use crate::aggregator::aggregator_trait::AggregatorTrait;
     use crate::aggregator::location_aggregator::LocationAggregator;
     use crate::aggregator::person_aggregator::tests::{compare_events, compare_revision};
@@ -329,6 +329,87 @@ mod tests {
             &[
                 r#"{"here":{"total":1,"married":1}}"#,
                 r#"{"here":null}"#]);
+    }
+
+    #[test]
+    pub fn test_update_change_location_keep_spouse() {
+        test_update(
+            &[
+                PersonData::new("Hans", Some("there"), None),
+                PersonData::new("Inge", Some("there"), Some(123))],
+            PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
+            Some(LocationData::new(1, 1)),
+            &[
+                r#"{"there":{"total":1,"married":0}}"#,
+                r#"{"there":{"total":2,"married":1}}"#,
+                r#"{"there":{"total":1,"married":0}}"#,
+                r#"{"here":{"total":1,"married":1}}"#]);
+    }
+
+    #[test]
+    pub fn test_update_change_last_location_keep_spouse() {
+        test_update(
+            &[PersonData::new("Hans", Some("there"), Some(123))],
+            PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
+            Some(LocationData::new(1, 1)),
+            &[
+                r#"{"there":{"total":1,"married":1}}"#,
+                r#"{"there":null}"#,
+                r#"{"here":{"total":1,"married":1}}"#]);
+    }
+
+    #[test]
+    pub fn test_update_change_location_set_spouse() {
+        test_update(
+            &[
+                PersonData::new("Hans", Some("there"), None),
+                PersonData::new("Inge", Some("there"), None)],
+            PersonPatch::new(None, Patch::Value("here"), Patch::Value(123)),
+            Some(LocationData::new(1, 1)),
+            &[
+                r#"{"there":{"total":1,"married":0}}"#,
+                r#"{"there":{"total":2}}"#,
+                r#"{"there":{"total":1}}"#,
+                r#"{"here":{"total":1,"married":1}}"#]);
+    }
+
+    #[test]
+    pub fn test_update_change_last_location_set_spouse() {
+        test_update(
+            &[PersonData::new("Hans", Some("there"), None)],
+            PersonPatch::new(None, Patch::Value("here"), Patch::Value(123)),
+            Some(LocationData::new(1, 1)),
+            &[
+                r#"{"there":{"total":1,"married":0}}"#,
+                r#"{"there":null}"#,
+                r#"{"here":{"total":1,"married":1}}"#]);
+    }
+
+    #[test]
+    pub fn test_update_change_location_delete_spouse() {
+        test_update(
+            &[
+                PersonData::new("Hans", Some("there"), None),
+                PersonData::new("Inge", Some("there"), Some(123))],
+            PersonPatch::new(None, Patch::Value("here"), Patch::Null),
+            Some(LocationData::new(1, 0)),
+            &[
+                r#"{"there":{"total":1,"married":0}}"#,
+                r#"{"there":{"total":2,"married":1}}"#,
+                r#"{"there":{"total":1,"married":0}}"#,
+                r#"{"here":{"total":1,"married":0}}"#]);
+    }
+
+    #[test]
+    pub fn test_update_change_last_location_delete_spouse() {
+        test_update(
+            &[PersonData::new("Hans", Some("there"), Some(123))],
+            PersonPatch::new(None, Patch::Value("here"), Patch::Null),
+            Some(LocationData::new(1, 0)),
+            &[
+                r#"{"there":{"total":1,"married":1}}"#,
+                r#"{"there":null}"#,
+                r#"{"here":{"total":1,"married":0}}"#]);
     }
 
     // Runs LocationAggregator::insert() followed by LocationAggregator::delete() for variants of input data
