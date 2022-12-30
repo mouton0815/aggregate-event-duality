@@ -2,6 +2,17 @@ use rusqlite::ToSql;
 use rusqlite::types::ToSqlOutput;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+///
+/// Wrapper class to express ternary logic "set value", "delete value", "keep value".
+/// * ``Value`` is serialized as a usual JSON value
+/// * ``Null`` is serialized as ``{ <field>: null }``
+/// * ``Absent`` is skipped by the serializer
+///
+/// Note that for skipping, the corresponding field must be annotated with
+/// ```
+/// #[serde(default)]
+/// #[serde(skip_serializing_if = "Patch::is_absent")]
+/// ```
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 pub enum Patch<T> {
     Value(T), // Set the aggregate value to the value of T
