@@ -7,6 +7,7 @@ use crate::aggregator::location_aggregator::LocationAggregator;
 use crate::aggregator::person_aggregator::PersonAggregator;
 use crate::database::person_table::PersonTable;
 use crate::database::revision_table::RevisionTable;
+use crate::domain::event_type::EventType;
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_map::PersonMap;
@@ -105,16 +106,12 @@ impl AggregatorFacade {
         Ok(result)
     }
 
-    pub fn get_person_events(&mut self, from_revision: usize) -> Result<Vec<String>> {
+    pub fn get_events(&mut self, event_type: EventType, from_revision: usize) -> Result<Vec<String>> {
         let tx = self.connection.transaction()?;
-        let events = self.person_aggr.get_events(&tx, from_revision)?;
-        tx.commit()?;
-        Ok(events)
-    }
-
-    pub fn get_location_events(&mut self, from_revision: usize) -> Result<Vec<String>> {
-        let tx = self.connection.transaction()?;
-        let events = self.location_aggr.get_events(&tx, from_revision)?;
+        let events = match event_type {
+            EventType::PERSON => self.person_aggr.get_events(&tx, from_revision),
+            EventType::LOCATION => self.location_aggr.get_events(&tx, from_revision)
+        }?;
         tx.commit()?;
         Ok(events)
     }

@@ -4,7 +4,8 @@ use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
 use warp::Filter;
 use crate::aggregator::aggregator_facade::MutexAggregator;
-use crate::rest::rest_handlers::{post_person, patch_person, get_person_events, delete_person, get_persons, get_location_events};
+use crate::domain::event_type::EventType;
+use crate::rest::rest_handlers::{post_person, patch_person, delete_person, get_persons, get_events};
 
 fn with_aggregator(aggregator: MutexAggregator)
     -> impl Filter<Extract = (MutexAggregator,), Error = Infallible> + Clone {
@@ -52,16 +53,18 @@ pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, rep
     let route_get_person_events = warp::path(path_person_events)
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
+        .and(with_constant(EventType::PERSON))
         .and(with_constant(repeat_every_secs))
         .and(warp::header::optional::<usize>("X-From-Revision"))
-        .and_then(get_person_events);
+        .and_then(get_events);
 
     let route_get_location_events = warp::path(path_location_events)
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
+        .and(with_constant(EventType::LOCATION))
         .and(with_constant(repeat_every_secs))
         .and(warp::header::optional::<usize>("X-From-Revision"))
-        .and_then(get_location_events);
+        .and_then(get_events);
 
     let routes = route_get_persons
         .or(route_post_person)

@@ -1,3 +1,4 @@
+pub mod event_type;
 pub mod person_data;
 pub mod person_patch;
 pub mod person_event;
