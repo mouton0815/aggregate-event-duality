@@ -1,6 +1,11 @@
 use serde::{Serialize, Deserialize};
 use crate::domain::location_patch::LocationPatch;
 
+///
+/// ``LocationData`` represents statistical information (i.e. counters) about persons with respect
+/// to a location. ``LocationData`` objects are store in
+/// [LocationTable](crate::database::location_table::LocationTable).
+///
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct LocationData {
     pub total: usize,

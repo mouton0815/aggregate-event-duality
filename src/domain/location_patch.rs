@@ -7,8 +7,8 @@ use crate::util::patch::Patch;
 
 ///
 /// The body of a [LocationEvent](crate::domain::location_event::LocationEvent).
-/// A ``LocationEvent`` represents changes of statistical information (i.e. counters)
-/// with respect to a location. A serialized ``LocationEvent`` contains only counters
+/// A ``LocationEvent`` represents changes of statistical information (i.e. counters) about
+/// persons with respect to a location. A serialized ``LocationEvent`` contains only counters
 /// that changed, all others are left out. This is modeled with [Option](core::option) wrappers.
 ///
 /// ``LocationPatch`` objects are constructed from a

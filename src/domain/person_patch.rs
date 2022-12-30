@@ -2,6 +2,18 @@ use serde::{Serialize, Deserialize};
 use crate::domain::person_data::PersonData;
 use crate::util::patch::Patch;
 
+///
+/// Changes of person data as received via ``PATCH`` requests.
+///
+/// ``PersonPatch`` objects are also the body of person events.
+/// A [PersonEvent](crate::domain::person_event::PersonEvent) represents changes of a person
+/// (insert, update, delete).
+/// A serialized ``PersonEvent`` contains only fields that changed, all others are left out.
+/// This is modeled with [Option](core::option) and [Patch](crate::util::patch::Patch) wrappers.
+///
+/// ``PersonPatch`` objects are constructed from
+/// [PersonData](crate::domain::person_data::PersonData) objects.
+///
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PersonPatch {

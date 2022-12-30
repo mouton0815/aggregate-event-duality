@@ -1,5 +1,12 @@
 use serde::{Serialize, Deserialize};
 
+///
+/// Person data as received via ``POST`` requests and stored in
+/// [PersonTable](crate::database::person_table::PersonTable).
+///
+/// Hint: Changes of person data are expressed by
+/// [PersonPatch](crate::domain::person_patch::PersonPatch) objects.
+///
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")] // TODO: Remove
 pub struct PersonData {

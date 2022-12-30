@@ -5,7 +5,8 @@ use crate::domain::person_patch::PersonPatch;
 use crate::util::patch::Patch;
 
 ///
-/// A person event. The encapsulated map always contains exactly one person.
+/// A person event. The encapsulated map always contains exactly one
+/// [PersonPatch](crate::domain::person_patch::PersonPatch) object.
 /// The implementation was chosen to produce the desired json output
 /// <code>{ <person_id>: <person_data> }</code>.
 ///

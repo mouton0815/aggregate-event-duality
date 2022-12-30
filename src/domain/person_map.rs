@@ -2,9 +2,11 @@ use std::collections::BTreeMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::person_data::PersonData;
 
-/// A map of persons with their ids as keys.
+///
+/// A map of [PersonData](crate::domain::person_data::PersonData) objects with their ids as keys.
 /// The implementation with an encapsulated map was chosen to produce the desired json output
 /// <code>{ <person_id>: <person_data>, ... }</code>.
+///
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct PersonMap(BTreeMap<u32, PersonData>); // TODO: Keys in JSON are always strings
 

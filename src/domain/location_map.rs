@@ -2,6 +2,12 @@ use std::collections::BTreeMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::location_data::LocationData;
 
+///
+/// A map of [LocationData](crate::domain::location_data::LocationData) objects with their
+/// locations as keys.
+/// The implementation with an encapsulated map was chosen to produce the desired json output
+/// <code>{ <location>: <location_data>, ... }</code>.
+///
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct LocationMap(BTreeMap<String, LocationData>);
 
