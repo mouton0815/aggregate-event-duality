@@ -141,6 +141,10 @@ impl DeletionTask<rusqlite::Error> for AggregatorFacade {
 #[cfg(test)]
 mod tests {
     use crate::aggregator::aggregator_facade::AggregatorFacade;
+    use crate::aggregator::person_aggregator::tests::compare_events;
+    use crate::domain::event_type::EventType;
+    use crate::domain::location_data::LocationData;
+    use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
@@ -211,7 +215,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_get_aggregates_empty() {
+    pub fn test_get_persons_empty() {
         let mut aggregator = create_aggregator();
 
         let persons_res = aggregator.get_persons();
@@ -222,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_aggregates() {
+    pub fn test_get_persons() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
@@ -234,6 +238,52 @@ mod tests {
         person_map.put(1, PersonData::new("Hans", None, None));
         let person_ref = (1, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
+    }
+
+    #[test]
+    pub fn test_get_locations() {
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("here"), Some(123));
+        let person2 = PersonData::new("Inge", Some("there"), None);
+        let person3 = PersonData::new("Fred", Some("here"), None);
+        assert!(aggregator.insert(&person1).is_ok());
+        assert!(aggregator.insert(&person2).is_ok());
+        assert!(aggregator.insert(&person3).is_ok());
+
+        let loc_res = aggregator.get_locations();
+        assert!(loc_res.is_ok());
+
+        let mut loc_map = LocationMap::new();
+        loc_map.put("here", LocationData::new(2, 1));
+        loc_map.put("there", LocationData::new(1, 0));
+        let loc_ref = (3, loc_map);
+        assert_eq!(loc_res.unwrap(), loc_ref);
+    }
+
+    #[test]
+    pub fn test_get_events() {
+        let mut aggregator = create_aggregator();
+
+        let person1 = PersonData::new("Hans", Some("here"), Some(123));
+        let person2 = PersonData::new("Inge", Some("there"), None);
+        let person3 = PersonData::new("Fred", Some("here"), None);
+        assert!(aggregator.insert(&person1).is_ok());
+        assert!(aggregator.insert(&person2).is_ok());
+        assert!(aggregator.insert(&person3).is_ok());
+
+        let events = aggregator.get_events(EventType::PERSON, 0);
+        compare_events(events, &[
+            r#"{"1":{"name":"Hans","location":"here","spouseId":123}}"#,
+            r#"{"2":{"name":"Inge","location":"there"}}"#,
+            r#"{"3":{"name":"Fred","location":"here"}}"#
+        ]);
+        let events = aggregator.get_events(EventType::LOCATION, 0);
+        compare_events(events, &[
+            r#"{"here":{"total":1,"married":1}}"#,
+            r#"{"there":{"total":1,"married":0}}"#,
+            r#"{"here":{"total":2}}"#
+        ]);
     }
 
     //

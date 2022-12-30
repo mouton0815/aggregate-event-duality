@@ -142,7 +142,7 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)> {
-        let revision = RevisionTable::read(&tx, EventType::PERSON)?;
+        let revision = RevisionTable::read(&tx, EventType::LOCATION)?;
         let locations = LocationTable::select_all(&tx)?;
         Ok((revision, locations))
     }
@@ -159,6 +159,7 @@ impl AggregatorTrait for LocationAggregator {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use rusqlite::{Connection, Transaction};
     use crate::aggregator::aggregator_trait::AggregatorTrait;
     use crate::aggregator::location_aggregator::LocationAggregator;
@@ -168,6 +169,7 @@ mod tests {
     use crate::database::revision_table::RevisionTable;
     use crate::domain::event_type::EventType;
     use crate::domain::location_data::LocationData;
+    use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
@@ -455,6 +457,94 @@ mod tests {
     }
 
     //
+    // Test read operations
+    //
+
+    #[test]
+    pub fn test_get_all() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+
+        let loc = LocationData::new(1, 3);
+        assert!(LocationTable::upsert(&tx, "here", &loc).is_ok());
+        assert!(RevisionTable::upsert(&tx, EventType::LOCATION, 2).is_ok());
+
+        let mut aggregator = create_aggregator();
+        let loc_res = aggregator.get_all(&tx);
+        assert!(loc_res.is_ok());
+
+        let mut loc_map = LocationMap::new();
+        loc_map.put("here", LocationData::new(1, 3));
+        let loc_ref = (2, loc_map);
+        assert_eq!(loc_res.unwrap(), loc_ref);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_get_all_empty() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+
+        let mut aggregator = create_aggregator();
+        let loc_res = aggregator.get_all(&tx);
+        assert!(loc_res.is_ok());
+
+        let loc_ref = (0, LocationMap::new());
+        assert_eq!(loc_res.unwrap(), loc_ref);
+        assert!(tx.commit().is_ok());
+    }
+
+    //
+    // Test event-related functions
+    //
+
+    #[test]
+    pub fn test_get_events() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+
+        let person = PersonData::new("Hans", Some("here"), None);
+        let patch = PersonPatch::new(None, Patch::Absent, Patch::Value(123));
+        let mut aggregator = create_aggregator();
+        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+
+        let event_ref1 = r#"{"here":{"total":1,"married":0}}"#;
+        let event_ref2 = r#"{"here":{"married":1}}"#;
+        get_events_and_compare(&tx, 0, &[&event_ref1, &event_ref2]);
+        get_events_and_compare(&tx, 1, &[&event_ref1, &event_ref2]);
+        get_events_and_compare(&tx, 2, &[&event_ref2]);
+        get_events_and_compare(&tx, 3, &[]);
+        assert!(tx.commit().is_ok());
+    }
+
+    #[test]
+    pub fn test_delete_events() {
+        let mut conn = create_connection();
+        let tx = conn.transaction().unwrap();
+
+        let person1 = PersonData::new("Hans", Some("here"), None);
+        let person2 = PersonData::new("Inge", Some("there"), None);
+        let patch2 = PersonPatch::new(None, Patch::Value("here"), Patch::Value(123));
+        let mut aggregator = create_aggregator();
+        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
+        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
+        assert!(aggregator.update(&tx, 2, &person2, &patch2).is_ok());
+
+        // IncrementalTimestamp is at 5 inside delete_events() below (note that  update()
+        // creates two events; minus 2 yields 3, so it deletes all events <3 (i.e. the first two)
+        // and keeps the last two
+        let result = aggregator.delete_events(&tx, Duration::from_secs(2));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2); // Two events deleted
+
+        get_events_and_compare(&tx, 0, &[
+            r#"{"there":null}"#,
+            r#"{"here":{"total":2,"married":1}}"#]);
+        assert!(tx.commit().is_ok());
+    }
+
+    //
     // Helper functions for test
     //
 
@@ -471,6 +561,17 @@ mod tests {
         assert!(LocationEventTable::create_table(&connection).is_ok());
         assert!(RevisionTable::create_table(&connection).is_ok());
         connection
+    }
+
+    fn get_events_and_compare(tx: &Transaction, from_revision: usize, ref_events: &[&str]) {
+        let mut aggregator = create_aggregator();
+        let events = aggregator.get_events(&tx, from_revision);
+        assert!(events.is_ok());
+        let events = events.unwrap();
+        assert_eq!(events.len(), ref_events.len());
+        for (index, &ref_event) in ref_events.iter().enumerate() {
+            assert_eq!(events[index], *ref_event);
+        }
     }
 
     fn check_record(tx: &Transaction, name: &str, loc_ref: Option<LocationData>) {

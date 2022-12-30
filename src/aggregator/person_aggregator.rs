@@ -231,14 +231,14 @@ pub mod tests {
         assert!(aggregator.insert(&tx, 2, &person2).is_ok());
         assert!(aggregator.update(&tx, 2, &person2, &patch2).is_ok());
 
-        // IncrementalTimestamp is at 4 inside delete_events(); minus 1 yields 3,
-        // so it deletes the first two events and keeps the last
+        // IncrementalTimestamp is at 4 inside delete_events() below; minus 1 yields 3,
+        // so it deletes all events <3 (i.e. the first two) and keeps the last one
         let result = aggregator.delete_events(&tx, Duration::from_secs(1));
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2);
+        assert_eq!(result.unwrap(), 2); // Two events deleted
 
-        let event_ref = r#"{"2":{"name":"Fred","location":"Nowhere","spouseId":123}}"#;
-        get_events_and_compare(&tx, 0, &[&event_ref]);
+        get_events_and_compare(&tx, 0, &[
+            r#"{"2":{"name":"Fred","location":"Nowhere","spouseId":123}}"#]);
         assert!(tx.commit().is_ok());
     }
 
@@ -278,8 +278,8 @@ pub mod tests {
     }
 
     // Function is also used by LocationAggregator tests
-    pub fn compare_revision(tx: &Transaction, revision_type: EventType, revision_ref: usize) {
-        let revision = RevisionTable::read(&tx, revision_type);
+    pub fn compare_revision(tx: &Transaction, event_type: EventType, revision_ref: usize) {
+        let revision = RevisionTable::read(&tx, event_type);
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), revision_ref);
     }
