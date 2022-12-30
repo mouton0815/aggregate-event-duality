@@ -37,6 +37,11 @@ impl LocationAggregator {
         })
     }
 
+    ///
+    /// Private method that performs an upsert for the ``location`` table, creates the
+    /// corresponding [LocationEvent](crate::domain::location_event::LocationEvent),
+    /// writes it to database, and increments the revision number.
+    ///
     fn upsert(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
         data.apply_patch(&patch);
         LocationTable::upsert(tx, name, &data)?;
@@ -44,7 +49,13 @@ impl LocationAggregator {
         self.write_event_and_revision(tx, event)
     }
 
-    // TODO: Document method
+    ///
+    /// Private method that performs an update or a delete for the ``location`` table.
+    /// The deletion is chosen if the no further persons with the given location ``name``
+    /// exist (the ``total`` counter became 0). The method then creates the corresponding
+    /// [LocationEvent](crate::domain::location_event::LocationEvent),
+    /// writes it to database, and increments the revision number.
+    ///
     fn update_or_delete(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
         // If after an update or delete the attribute "total" is 0, then delete the corresponding
         // location record and write an event that indicates deletion, i.e. { <location>: null }.
