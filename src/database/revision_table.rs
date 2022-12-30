@@ -1,13 +1,9 @@
 use log::debug;
 use rusqlite::{Connection, params, Result, Transaction};
-
-pub enum RevisionType {
-    PERSON = 1,
-    LOCATION = 2
-}
+use crate::domain::event_type::EventType;
 
 // The tableId field denotes the corresponding aggregate tables
-// e.g. RevisionType::PERSON = 1 => "person_aggregate"
+// e.g. EventType::PERSON = 1 => "person_aggregate"
 const CREATE_REVISION_TABLE: &'static str =
     "CREATE TABLE IF NOT EXISTS revision (
         tableId INTEGER NOT NULL PRIMARY KEY,
@@ -32,13 +28,13 @@ impl RevisionTable {
         Ok(())
     }
 
-    pub fn upsert(tx: &Transaction, revision_type: RevisionType, revision: usize) -> Result<()> {
+    pub fn upsert(tx: &Transaction, revision_type: EventType, revision: usize) -> Result<()> {
         debug!("Execute\n{} with: {}", UPSERT_REVISION, revision);
         tx.execute(UPSERT_REVISION, params![revision_type as u16, revision])?;
         Ok(())
     }
 
-    pub fn read(tx: &Transaction, revision_type: RevisionType) -> Result<usize> {
+    pub fn read(tx: &Transaction, revision_type: EventType) -> Result<usize> {
         let mut stmt = tx.prepare(SELECT_REVISION)?;
         let mut rows = stmt.query([revision_type as u16])?;
         match rows.next()? {
@@ -51,13 +47,14 @@ impl RevisionTable {
 #[cfg(test)]
 mod tests {
     use rusqlite::Connection;
-    use crate::database::revision_table::{RevisionTable, RevisionType};
+    use crate::database::revision_table::RevisionTable;
+    use crate::domain::event_type::EventType;
 
     #[test]
     fn test_upsert_initial() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(RevisionTable::upsert(&tx, RevisionType::LOCATION, 100).is_ok());
+        assert!(RevisionTable::upsert(&tx, EventType::LOCATION, 100).is_ok());
         assert!(tx.commit().is_ok());
 
         check_result(&mut conn, 100);
@@ -67,8 +64,8 @@ mod tests {
     fn test_upsert_conflict() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        assert!(RevisionTable::upsert(&tx, RevisionType::LOCATION, 100).is_ok());
-        assert!(RevisionTable::upsert(&tx, RevisionType::LOCATION, 101).is_ok());
+        assert!(RevisionTable::upsert(&tx, EventType::LOCATION, 100).is_ok());
+        assert!(RevisionTable::upsert(&tx, EventType::LOCATION, 101).is_ok());
         assert!(tx.commit().is_ok());
 
         check_result(&mut conn, 101);
@@ -78,7 +75,7 @@ mod tests {
     fn test_read_empty() {
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
-        let revision = RevisionTable::read(&tx, RevisionType::LOCATION);
+        let revision = RevisionTable::read(&tx, EventType::LOCATION);
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), 0);
@@ -94,7 +91,7 @@ mod tests {
 
     fn check_result(conn: &mut Connection, ref_revision: usize) {
         let tx = conn.transaction().unwrap();
-        let revision = RevisionTable::read(&tx, RevisionType::LOCATION);
+        let revision = RevisionTable::read(&tx, EventType::LOCATION);
         assert!(tx.commit().is_ok());
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), ref_revision);

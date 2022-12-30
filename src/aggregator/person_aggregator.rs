@@ -3,7 +3,8 @@ use rusqlite::{Connection, Result, Transaction};
 use crate::aggregator::aggregator_trait::AggregatorTrait;
 use crate::database::event_table::PersonEventTable;
 use crate::database::person_table::PersonTable;
-use crate::database::revision_table::{RevisionTable, RevisionType};
+use crate::database::revision_table::RevisionTable;
+use crate::domain::event_type::EventType;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
 use crate::domain::person_map::PersonMap;
@@ -35,7 +36,7 @@ impl PersonAggregator {
     fn write_event_and_revision(&mut self, tx: &Transaction, timestamp: u64, event: PersonEvent) -> Result<()> {
         let event = Self::stringify(event);
         let revision = PersonEventTable::insert(&tx, timestamp, event.as_str())?;
-        RevisionTable::upsert(&tx, RevisionType::PERSON, revision)
+        RevisionTable::upsert(&tx, EventType::PERSON, revision)
     }
 
     fn stringify(event: PersonEvent) -> String {
@@ -69,7 +70,7 @@ impl AggregatorTrait for PersonAggregator {
     }
 
     fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)> {
-        let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
+        let revision = RevisionTable::read(&tx, EventType::PERSON)?;
         let persons = PersonTable::select_all(&tx)?;
         Ok((revision, persons))
     }
@@ -92,7 +93,8 @@ pub mod tests {
     use crate::aggregator::person_aggregator::PersonAggregator;
     use crate::database::event_table::PersonEventTable;
     use crate::database::person_table::PersonTable;
-    use crate::database::revision_table::{RevisionTable, RevisionType};
+    use crate::database::revision_table::RevisionTable;
+    use crate::domain::event_type::EventType;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
@@ -165,7 +167,7 @@ pub mod tests {
 
         let person = PersonData::new("Hans", None, None);
         assert!(PersonTable::insert(&tx, &person).is_ok());
-        assert!(RevisionTable::upsert(&tx, RevisionType::PERSON, 2).is_ok());
+        assert!(RevisionTable::upsert(&tx, EventType::PERSON, 2).is_ok());
 
         let mut aggregator = create_aggregator();
         let persons_res = aggregator.get_all(&tx);
@@ -271,12 +273,12 @@ pub mod tests {
     }
 
     fn check_events(tx: &Transaction, events_ref: &[&str]) {
-        compare_revision(tx, RevisionType::PERSON, events_ref.len());
+        compare_revision(tx, EventType::PERSON, events_ref.len());
         compare_events(PersonEventTable::read(tx, 0), events_ref);
     }
 
     // Function is also used by LocationAggregator tests
-    pub fn compare_revision(tx: &Transaction, revision_type: RevisionType, revision_ref: usize) {
+    pub fn compare_revision(tx: &Transaction, revision_type: EventType, revision_ref: usize) {
         let revision = RevisionTable::read(&tx, revision_type);
         assert!(revision.is_ok());
         assert_eq!(revision.unwrap(), revision_ref);

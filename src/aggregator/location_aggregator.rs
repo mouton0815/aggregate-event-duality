@@ -3,7 +3,8 @@ use rusqlite::{Connection, Result, Transaction};
 use crate::aggregator::aggregator_trait::AggregatorTrait;
 use crate::database::event_table::LocationEventTable;
 use crate::database::location_table::LocationTable;
-use crate::database::revision_table::{RevisionTable, RevisionType};
+use crate::database::revision_table::RevisionTable;
+use crate::domain::event_type::EventType;
 use crate::domain::location_data::LocationData;
 use crate::domain::location_event::LocationEvent;
 use crate::domain::location_map::LocationMap;
@@ -75,7 +76,7 @@ impl LocationAggregator {
         let event = Self::stringify(event);
         let timestamp = self.timestamp.as_secs();
         let revision = LocationEventTable::insert(&tx, timestamp, event.as_str())?;
-        RevisionTable::upsert(&tx, RevisionType::LOCATION, revision)
+        RevisionTable::upsert(&tx, EventType::LOCATION, revision)
     }
 
     fn stringify(event: LocationEvent) -> String {
@@ -141,7 +142,7 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)> {
-        let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
+        let revision = RevisionTable::read(&tx, EventType::PERSON)?;
         let locations = LocationTable::select_all(&tx)?;
         Ok((revision, locations))
     }
@@ -164,7 +165,8 @@ mod tests {
     use crate::aggregator::person_aggregator::tests::{compare_events, compare_revision};
     use crate::database::event_table::LocationEventTable;
     use crate::database::location_table::LocationTable;
-    use crate::database::revision_table::{RevisionTable, RevisionType};
+    use crate::database::revision_table::RevisionTable;
+    use crate::domain::event_type::EventType;
     use crate::domain::location_data::LocationData;
     use crate::domain::person_data::PersonData;
     use crate::domain::person_patch::PersonPatch;
@@ -479,7 +481,7 @@ mod tests {
     }
 
     fn check_events(tx: &Transaction, events_ref: &[&str]) {
-        compare_revision(tx, RevisionType::LOCATION, events_ref.len());
+        compare_revision(tx, EventType::LOCATION, events_ref.len());
         compare_events(LocationEventTable::read(tx, 0), events_ref);
     }
 }
