@@ -32,15 +32,15 @@ impl RevisionTable {
         Ok(())
     }
 
-    pub fn upsert(tx: &Transaction, revision_type: RevisionType, revision: u32) -> Result<()> {
+    pub fn upsert(tx: &Transaction, revision_type: RevisionType, revision: usize) -> Result<()> {
         debug!("Execute\n{} with: {}", UPSERT_REVISION, revision);
-        tx.execute(UPSERT_REVISION, params![revision_type as u32, revision])?;
+        tx.execute(UPSERT_REVISION, params![revision_type as u16, revision])?;
         Ok(())
     }
 
-    pub fn read(tx: &Transaction, revision_type: RevisionType) -> Result<u32> {
+    pub fn read(tx: &Transaction, revision_type: RevisionType) -> Result<usize> {
         let mut stmt = tx.prepare(SELECT_REVISION)?;
-        let mut rows = stmt.query([revision_type as u32])?;
+        let mut rows = stmt.query([revision_type as u16])?;
         match rows.next()? {
             Some(row) => Ok(row.get(0)?),
             None => Ok(0)
@@ -92,7 +92,7 @@ mod tests {
         conn
     }
 
-    fn check_result(conn: &mut Connection, ref_revision: u32) {
+    fn check_result(conn: &mut Connection, ref_revision: usize) {
         let tx = conn.transaction().unwrap();
         let revision = RevisionTable::read(&tx, RevisionType::LOCATION);
         assert!(tx.commit().is_ok());

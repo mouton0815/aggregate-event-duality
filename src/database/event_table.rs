@@ -24,16 +24,16 @@ impl<const TABLE_TYPE: usize> EventTable<TABLE_TYPE> {
         Ok(())
     }
 
-    pub fn insert(tx: &Transaction, timestamp: u64, event: &str) -> Result<u32> {
+    pub fn insert(tx: &Transaction, timestamp: u64, event: &str) -> Result<usize> {
         let stmt = format!(
             "INSERT INTO {} (time, event) VALUES (?,?)",
             Self::table_name(TABLE_TYPE));
         debug!("Execute\n{}\nwith: {} and {}", stmt, timestamp, event);
         tx.execute(stmt.as_str(), params![timestamp, event])?;
-        Ok(tx.last_insert_rowid() as u32)
+        Ok(tx.last_insert_rowid() as usize)
     }
 
-    pub fn read(tx: &Transaction, from_revision: u32) -> Result<Vec<String>> {
+    pub fn read(tx: &Transaction, from_revision: usize) -> Result<Vec<String>> {
         let stmt = format!(
             "SELECT event FROM {} WHERE revision >= ? ORDER BY revision",
             Self::table_name(TABLE_TYPE));

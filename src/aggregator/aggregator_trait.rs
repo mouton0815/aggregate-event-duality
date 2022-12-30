@@ -12,8 +12,8 @@ pub trait AggregatorTrait {
     fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<()>;
     fn delete(&mut self, tx: &Transaction, person_id: u32, person: &PersonData) -> Result<()>;
 
-    fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Records)>;
+    fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)>;
 
-    fn get_events(&mut self, tx: &Transaction, from_revision: u32) -> Result<Vec<String>>;
+    fn get_events(&mut self, tx: &Transaction, from_revision: usize) -> Result<Vec<String>>;
     fn delete_events(&mut self, tx: &Transaction, created_before: Duration) -> Result<usize>;
 }

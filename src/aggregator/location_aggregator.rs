@@ -140,13 +140,13 @@ impl AggregatorTrait for LocationAggregator {
         Ok(())
     }
 
-    fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Records)> {
+    fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)> {
         let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
         let locations = LocationTable::select_all(&tx)?;
         Ok((revision, locations))
     }
 
-    fn get_events(&mut self, tx: &Transaction, from_revision: u32) -> Result<Vec<String>> {
+    fn get_events(&mut self, tx: &Transaction, from_revision: usize) -> Result<Vec<String>> {
         LocationEventTable::read(&tx, from_revision)
     }
 

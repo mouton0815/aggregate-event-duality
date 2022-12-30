@@ -91,28 +91,28 @@ impl AggregatorFacade {
         }
     }
 
-    pub fn get_persons(&mut self) -> Result<(u32, PersonMap)> {
+    pub fn get_persons(&mut self) -> Result<(usize, PersonMap)> {
         let tx = self.connection.transaction()?;
         let result = self.person_aggr.get_all(&tx)?;
         tx.commit()?;
         Ok(result)
     }
 
-    pub fn get_locations(&mut self) -> Result<(u32, LocationMap)> {
+    pub fn get_locations(&mut self) -> Result<(usize, LocationMap)> {
         let tx = self.connection.transaction()?;
         let result = self.location_aggr.get_all(&tx)?;
         tx.commit()?;
         Ok(result)
     }
 
-    pub fn get_person_events(&mut self, from_revision: u32) -> Result<Vec<String>> {
+    pub fn get_person_events(&mut self, from_revision: usize) -> Result<Vec<String>> {
         let tx = self.connection.transaction()?;
         let events = self.person_aggr.get_events(&tx, from_revision)?;
         tx.commit()?;
         Ok(events)
     }
 
-    pub fn get_location_events(&mut self, from_revision: u32) -> Result<Vec<String>> {
+    pub fn get_location_events(&mut self, from_revision: usize) -> Result<Vec<String>> {
         let tx = self.connection.transaction()?;
         let events = self.location_aggr.get_events(&tx, from_revision)?;
         tx.commit()?;

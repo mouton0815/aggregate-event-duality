@@ -14,11 +14,11 @@ use crate::util::scheduled_stream::Fetcher;
 ///
 pub struct PersonEventFetcher {
     aggregator: MutexAggregator,
-    offset: u32
+    offset: usize
 }
 
 impl PersonEventFetcher {
-    pub fn new(aggregator: MutexAggregator, offset: u32) -> Self {
+    pub fn new(aggregator: MutexAggregator, offset: usize) -> Self {
         Self { aggregator, offset }
     }
 }
@@ -29,7 +29,7 @@ impl Fetcher<String, rusqlite::Error> for PersonEventFetcher {
         return match aggregator.get_person_events(self.offset) {
             Err(err) => Err(err),
             Ok(events) => {
-                self.offset += events.len() as u32;
+                self.offset += events.len();
                 Ok(events)
             }
         }
@@ -49,11 +49,11 @@ impl Fetcher<String, rusqlite::Error> for PersonEventFetcher {
 ///
 pub struct LocationEventFetcher {
     aggregator: MutexAggregator,
-    offset: u32
+    offset: usize
 }
 
 impl LocationEventFetcher {
-    pub fn new(aggregator: MutexAggregator, offset: u32) -> Self {
+    pub fn new(aggregator: MutexAggregator, offset: usize) -> Self {
         Self { aggregator, offset }
     }
 }
@@ -64,7 +64,7 @@ impl Fetcher<String, rusqlite::Error> for LocationEventFetcher {
         return match aggregator.get_location_events(self.offset) {
             Err(err) => Err(err),
             Ok(events) => {
-                self.offset += events.len() as u32;
+                self.offset += events.len();
                 Ok(events)
             }
         }

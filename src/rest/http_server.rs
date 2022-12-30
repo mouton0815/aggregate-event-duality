@@ -53,14 +53,14 @@ pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, rep
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
         .and(with_constant(repeat_every_secs))
-        .and(warp::header::optional::<u32>("X-From-Revision"))
+        .and(warp::header::optional::<usize>("X-From-Revision"))
         .and_then(get_person_events);
 
     let route_get_location_events = warp::path(path_location_events)
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
         .and(with_constant(repeat_every_secs))
-        .and(warp::header::optional::<u32>("X-From-Revision"))
+        .and(warp::header::optional::<usize>("X-From-Revision"))
         .and_then(get_location_events);
 
     let routes = route_get_persons

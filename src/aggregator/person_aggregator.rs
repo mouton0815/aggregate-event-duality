@@ -68,13 +68,13 @@ impl AggregatorTrait for PersonAggregator {
         self.write_event_and_revision(&tx, timestamp, event)
     }
 
-    fn get_all(&mut self, tx: &Transaction) -> Result<(u32, Self::Records)> {
+    fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)> {
         let revision = RevisionTable::read(&tx, RevisionType::PERSON)?;
         let persons = PersonTable::select_all(&tx)?;
         Ok((revision, persons))
     }
 
-    fn get_events(&mut self, tx: &Transaction, from_revision: u32) -> Result<Vec<String>> {
+    fn get_events(&mut self, tx: &Transaction, from_revision: usize) -> Result<Vec<String>> {
         PersonEventTable::read(&tx, from_revision)
     }
 
@@ -259,7 +259,7 @@ pub mod tests {
         connection
     }
 
-    fn get_events_and_compare(tx: &Transaction, from_revision: u32, ref_events: &[&str]) {
+    fn get_events_and_compare(tx: &Transaction, from_revision: usize, ref_events: &[&str]) {
         let mut aggregator = create_aggregator();
         let events = aggregator.get_events(&tx, from_revision);
         assert!(events.is_ok());
@@ -279,7 +279,7 @@ pub mod tests {
     pub fn compare_revision(tx: &Transaction, revision_type: RevisionType, revision_ref: usize) {
         let revision = RevisionTable::read(&tx, revision_type);
         assert!(revision.is_ok());
-        assert_eq!(revision.unwrap(), revision_ref as u32);
+        assert_eq!(revision.unwrap(), revision_ref);
     }
 
     // Function is also used by LocationAggregator tests
