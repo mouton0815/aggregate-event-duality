@@ -163,21 +163,36 @@ mod tests {
     // Test aggregation functions
     //
 
-    #[test]
-    pub fn test_insert() {
+    // Runs LocationAggregator::insert() for variants of input data
+    fn test_insert(person: PersonData, record_ref: Option<LocationData>, event_ref: &str) {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
         let mut aggregator = create_aggregator();
 
-        let person = PersonData::new("Hans", Some("here"), Some(123));
         assert!(aggregator.insert(&tx, 1, &person).is_ok());
 
-        check_record(&tx, "here", Some(LocationData::new(1, 1)));
-        check_events(&tx, &[r#"{"here":{"total":1,"married":1}}"#]);
+        check_record(&tx, "here", record_ref);
+        check_events(&tx, &[event_ref]);
         assert!(tx.commit().is_ok());
     }
 
-    // Runs LocationAggregator::update() followed by LocationAggregator::update() for variants of input data
+    #[test]
+    pub fn test_insert_with_spouse() {
+        test_insert(
+            PersonData::new("Hans", Some("here"), Some(123)),
+            Some(LocationData::new(1, 1)),
+            r#"{"here":{"total":1,"married":1}}"#);
+    }
+
+    #[test]
+    pub fn test_insert_no_spouse() {
+        test_insert(
+            PersonData::new("Hans", Some("here"), None),
+            Some(LocationData::new(1, 0)),
+            r#"{"here":{"total":1}}"#); // TODO: Should initial value of "married" be 0 ?
+    }
+
+    // Runs LocationAggregator::insert() followed by LocationAggregator::update() for variants of input data
     fn test_update(persons: &[PersonData], patch: PersonPatch, record_ref: Option<LocationData>, events_ref: &[&str]) {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
@@ -290,41 +305,44 @@ mod tests {
                 r#"{"here":null}"#]);
     }
 
-    #[test]
-    pub fn test_delete() {
+    // Runs LocationAggregator::insert() followed by LocationAggregator::delete() for variants of input data
+    fn test_delete(persons: &[PersonData], record_ref: Option<LocationData>, events_ref: &[&str]) {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
         let mut aggregator = create_aggregator();
 
-        let person1 = PersonData::new("Hans", Some("here"), None);
-        let person2 = PersonData::new("Inge", Some("here"), Some(123));
-        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
-        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
-        assert!(aggregator.delete(&tx, 2, &person2).is_ok());
+        for person in persons {
+            assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        }
+        assert!(aggregator.delete(&tx, 1, &persons.last().unwrap()).is_ok());
 
-        check_record(&tx, "here", Some(LocationData::new(1, 0)));
-        check_events(&tx, &[
-            r#"{"here":{"total":1}}"#,
-            r#"{"here":{"total":2,"married":1}}"#,
-            r#"{"here":{"total":1,"married":0}}"#]);
+        check_record(&tx, "here", record_ref);
+        check_events(&tx, events_ref);
         assert!(tx.commit().is_ok());
     }
 
     #[test]
+    pub fn test_delete_not_last() {
+        test_delete(
+            &[
+                PersonData::new("Hans", Some("here"), None),
+                PersonData::new("Inge", Some("here"), Some(123))
+            ],
+            Some(LocationData::new(1, 0)),
+            &[
+                r#"{"here":{"total":1}}"#,
+                r#"{"here":{"total":2,"married":1}}"#,
+                r#"{"here":{"total":1,"married":0}}"#]);
+    }
+
+    #[test]
     pub fn test_delete_last() {
-        let mut conn = create_connection();
-        let tx = conn.transaction().unwrap();
-        let mut aggregator = create_aggregator();
-
-        let person = PersonData::new("Hans", Some("here"), Some(123));
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
-        assert!(aggregator.delete(&tx, 1, &person).is_ok());
-
-        check_record(&tx, "here", None);
-        check_events(&tx, &[
-            r#"{"here":{"total":1,"married":1}}"#,
-            r#"{"here":null}"#]);
-        assert!(tx.commit().is_ok());
+        test_delete(
+            &[PersonData::new("Hans", Some("here"), Some(123))],
+            None,
+            &[
+                r#"{"here":{"total":1,"married":1}}"#,
+                r#"{"here":null}"#]);
     }
 
     //
