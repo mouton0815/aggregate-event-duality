@@ -28,15 +28,15 @@ impl RevisionTable {
         Ok(())
     }
 
-    pub fn upsert(tx: &Transaction, revision_type: EventType, revision: usize) -> Result<()> {
+    pub fn upsert(tx: &Transaction, event_type: EventType, revision: usize) -> Result<()> {
         debug!("Execute\n{} with: {}", UPSERT_REVISION, revision);
-        tx.execute(UPSERT_REVISION, params![revision_type as u16, revision])?;
+        tx.execute(UPSERT_REVISION, params![event_type as u16, revision])?;
         Ok(())
     }
 
-    pub fn read(tx: &Transaction, revision_type: EventType) -> Result<usize> {
+    pub fn read(tx: &Transaction, event_type: EventType) -> Result<usize> {
         let mut stmt = tx.prepare(SELECT_REVISION)?;
-        let mut rows = stmt.query([revision_type as u16])?;
+        let mut rows = stmt.query([event_type as u16])?;
         match rows.next()? {
             Some(row) => Ok(row.get(0)?),
             None => Ok(0)
