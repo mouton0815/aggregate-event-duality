@@ -13,7 +13,7 @@
 [ ] Node.js consumer
 [ ] Apply Patch changes to JsonTernary. Publish JsonTernary. Import JsonTernary instead of Patch (use type alias)
 [x] Remove ON CONFLICT from person table as conflicts cannot happen
-[ ] Migrate location stuff to location statistics
+[x] Migrate location stuff to location statistics
 [ ] Rename project to [rust-]stream-table-duality
 [x] Create "AggregatorFacade" that wraps the aggregators
 [ ] Rename server to processor? (if so, also change README.md incl figures)
