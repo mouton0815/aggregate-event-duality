@@ -274,9 +274,9 @@ mod tests {
 
         let events = aggregator.get_events(EventType::PERSON, 0);
         compare_events(events, &[
-            r#"{"1":{"name":"Hans","location":"here","spouseId":123}}"#,
-            r#"{"2":{"name":"Inge","location":"there"}}"#,
-            r#"{"3":{"name":"Fred","location":"here"}}"#
+            r#"{"1":{"name":"Hans","city":"here","spouse":123}}"#,
+            r#"{"2":{"name":"Inge","city":"there"}}"#,
+            r#"{"3":{"name":"Fred","city":"here"}}"#
         ]);
         let events = aggregator.get_events(EventType::LOCATION, 0);
         compare_events(events, &[

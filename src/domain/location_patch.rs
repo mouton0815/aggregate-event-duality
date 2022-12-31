@@ -39,9 +39,9 @@ impl LocationPatch {
     /// Returns a ``LocationPatch`` object or ``None`` if no aggregate value changed.
     ///
     pub fn for_insert(data: &LocationData, person: &PersonData) -> Option<Self> {
-        if person.location.is_some() { // Should be checked by the caller (could be an assertion)
+        if person.city.is_some() { // Should be checked by the caller (could be an assertion)
             let total = Some(data.total + 1);
-            let married = Self::optional_increment(data.married, person.spouse_id, data.total);
+            let married = Self::optional_increment(data.married, person.spouse, data.total);
             // Further updates of data fields here ...
             Some(Self::new(total, married))
         } else {
@@ -59,9 +59,9 @@ impl LocationPatch {
     ///
     pub fn for_update(data: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
         // Should be checked by the caller (could be an assertion):
-        if person.location.is_some() && patch.location.is_absent() {
+        if person.city.is_some() && patch.city.is_absent() {
             // Location of person remains, adapt all counters except total
-            let married = Self::conditional_update(data.married, patch.spouse_id);
+            let married = Self::conditional_update(data.married, patch.spouse);
             // Further updates of data fields here ...
             if married.is_some() {
                 return Some(Self::new(None, married));
@@ -80,9 +80,9 @@ impl LocationPatch {
     ///
     pub fn for_change(data: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
         // Location of person changed, decrement counters of new location
-        if patch.location.is_value() { // Should be checked by the caller (could be an assertion)
+        if patch.city.is_value() { // Should be checked by the caller (could be an assertion)
             let total = Some(data.total + 1);
-            let married = Self::conditional_increment(data.married, person.spouse_id, patch.spouse_id, data.total);
+            let married = Self::conditional_increment(data.married, person.spouse, patch.spouse, data.total);
             // Further updates of data fields here ...
             Some(Self::new(total, married))
         } else {
@@ -99,9 +99,9 @@ impl LocationPatch {
     /// Returns a ``LocationPatch`` object or ``None`` if no aggregate value changed.
     ///
     pub fn for_delete(data: &LocationData, person: &PersonData) -> Option<Self> {
-        if person.location.is_some() { // Should be checked by the caller (could be an assertion)
+        if person.city.is_some() { // Should be checked by the caller (could be an assertion)
             let total = Self::checked_decrement(data.total);
-            let married = Self::optional_decrement(data.married, person.spouse_id);
+            let married = Self::optional_decrement(data.married, person.spouse);
             // Further updates of data fields here ...
             if total.is_some() || married.is_some() {
                 return Some(Self::new(total, married));
@@ -411,7 +411,6 @@ mod tests {
         let loc = LocationData::new(0, 0);
         let person = PersonData::new("Hans", Some("Here"), Some(123));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Null);
-        // TODO: Shouldn't there be two patches, one for old, one for new?
         let l_patch = LocationPatch::for_change(&loc, &person, &p_patch);
         assert_eq!(l_patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }

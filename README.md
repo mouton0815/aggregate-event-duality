@@ -8,24 +8,24 @@ Another aggregate may provide a grouping of all bespoken persons by their locati
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 
-| #   | Input operation                                       | Resulting person aggregate                                        |
-|-----|-------------------------------------------------------|-------------------------------------------------------------------|
-| 1   | ``POST /persons {"name":"Hans","location":"Berlin"}`` | ``{"1":{"name":"Hans","location":"Berlin"}}``                     |
-| 2   | ``POST /persons {"name":"Inge"}``                     | ``{"1":{"name":"Hans","location":"Berlin"},"2":{"name":"Inge"}}`` |
-| 3   | ``PATCH /persons/1 {"location":null}``                | ``{"1":{"name":"Hans"},"2":{"name":"Inge"}}``                     |
-| 4   | ``DELETE /persons/1``                                 | ``{"2":{"name":"Inge"}}``                                         |
+| #   | Input operation                                   | Resulting person aggregate                                    |
+|-----|---------------------------------------------------|---------------------------------------------------------------|
+| 1   | ``POST /persons {"name":"Hans","city":"Berlin"}`` | ``{"1":{"name":"Hans","city":"Berlin"}}``                     |
+| 2   | ``POST /persons {"name":"Inge"}``                 | ``{"1":{"name":"Hans","city":"Berlin"},"2":{"name":"Inge"}}`` |
+| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"name":"Hans"},"2":{"name":"Inge"}}``                 |
+| 4   | ``DELETE /persons/1``                             | ``{"2":{"name":"Inge"}}``                                     |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.
 The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386)
 (not to be confused with [JSON Patch](https://jsonpatch.com)).
 
-| #   | Input operation                                       | Resulting JSON Merge Patch event              |
-|-----|-------------------------------------------------------|-----------------------------------------------|
-| 1   | ``POST /persons {"name":"Hans","location":"Berlin"}`` | ``{"1":{"name":"Hans","location":"Berlin"}}`` |
-| 2   | ``POST /persons {"name":"Inge"}``                     | ``{"2":{"name":"Inge"}}``                     |
-| 3   | ``PATCH /persons/1 {"location":null}``                | ``{"1":{"location":null}}``                   |
-| 4   | ``DELETE /persons/1``                                 | ``{"1":null}``                                |
+| #   | Input operation                                   | Resulting JSON Merge Patch event           |
+|-----|---------------------------------------------------|--------------------------------------------|
+| 1   | ``POST /persons {"name":"Hans","city":"Berlin"}`` | ``{"1":{"name":"Hans","city":"Berlin"}}``  |
+| 2   | ``POST /persons {"name":"Inge"}``                 | ``{"2":{"name":"Inge"}}``                  |
+| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"city":null}}``                    |
+| 4   | ``DELETE /persons/1``                             | ``{"1":null}``                             |
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
@@ -99,9 +99,9 @@ To build an aggregate and product the corresponding change events,
 you need to create/update/delete persons via the REST endpoint of the server.
 Example requests:
 ```shell
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Hans","location":"Berlin"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Hans","city":"Berlin"}' http://localhost:3000/persons
 curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Inge"}' http://localhost:3000/persons
-curl -X PATCH -H 'Content-Type: application/json' -d '{"location":null}' http://localhost:3000/persons/1
+curl -X PATCH -H 'Content-Type: application/json' -d '{"city":null}' http://localhost:3000/persons/1
 curl -X DELETE http://localhost:3000/persons/1
 ```
 The aggregates are available at the following endpoints:

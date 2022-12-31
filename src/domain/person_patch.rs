@@ -15,7 +15,6 @@ use crate::util::patch::Patch;
 /// [PersonData](crate::domain::person_data::PersonData) objects.
 ///
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct PersonPatch {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -23,31 +22,31 @@ pub struct PersonPatch {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub location: Patch<String>,
+    pub city: Patch<String>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub spouse_id: Patch<u32>
+    pub spouse: Patch<u32>
 }
 
 impl PersonPatch {
     /// Convenience function that takes &str literals
-    pub fn new(name: Option<&str>, location: Patch<&str>, spouse_id: Patch<u32>) -> Self {
+    pub fn new(name: Option<&str>, city: Patch<&str>, spouse: Patch<u32>) -> Self {
         Self {
             name: name.map(|n| String::from(n)),
-            location: location.map(|l| String::from(l)),
-            spouse_id
+            city: city.map(|l| String::from(l)),
+            spouse
         }
     }
 
     pub fn of(old: &PersonData, new: &PersonData) -> Option<Self> {
         let name = if old.name == new.name { None } else { Some(new.name.clone()) };
-        let location = Patch::of_options(&old.location, &new.location);
-        let spouse_id = Patch::of_options(&old.spouse_id, &new.spouse_id);
-        if name.is_none() && location.is_absent() && spouse_id.is_absent() {
+        let city = Patch::of_options(&old.city, &new.city);
+        let spouse = Patch::of_options(&old.spouse, &new.spouse);
+        if name.is_none() && city.is_absent() && spouse.is_absent() {
             None
         } else {
-            Some(Self{ name, location, spouse_id })
+            Some(Self{ name, city, spouse })
         }
     }
 }
@@ -62,21 +61,21 @@ mod tests {
     #[test]
     pub fn test_serde1() {
         let person = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Null);
-        let json_ref = r#"{"name":"Hans","spouseId":null}"#;
+        let json_ref = r#"{"name":"Hans","spouse":null}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
     pub fn test_serde2() {
         let person = PersonPatch::new(None, Patch::Value("Here"), Patch::Value(123));
-        let json_ref = r#"{"location":"Here","spouseId":123}"#;
+        let json_ref = r#"{"city":"Here","spouse":123}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
     pub fn test_serde3() {
         let person = PersonPatch::new(None, Patch::Null, Patch::Absent);
-        let json_ref = r#"{"location":null}"#;
+        let json_ref = r#"{"city":null}"#;
         serde_and_verify(&person, json_ref);
     }
 

@@ -114,7 +114,7 @@ pub mod tests {
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, 1, &person).is_ok());
 
-        let events_ref = [r#"{"1":{"name":"Hans","location":"Here"}}"#];
+        let events_ref = [r#"{"1":{"name":"Hans","city":"Here"}}"#];
         check_events(&tx, &events_ref);
         assert!(tx.commit().is_ok());
     }
@@ -131,8 +131,8 @@ pub mod tests {
         assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
 
         let events_ref = [
-            r#"{"1":{"name":"Hans","location":"Here"}}"#,
-            r#"{"1":{"name":"Inge","location":null,"spouseId":123}}"#
+            r#"{"1":{"name":"Hans","city":"Here"}}"#,
+            r#"{"1":{"name":"Inge","city":null,"spouse":123}}"#
         ];
         check_events(&tx, &events_ref);
         assert!(tx.commit().is_ok());
@@ -210,7 +210,7 @@ pub mod tests {
         assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
 
         let event_ref1 = r#"{"1":{"name":"Hans"}}"#;
-        let event_ref2 = r#"{"1":{"name":"Inge","location":"Nowhere","spouseId":123}}"#;
+        let event_ref2 = r#"{"1":{"name":"Inge","city":"Nowhere","spouse":123}}"#;
         get_events_and_compare(&tx, 0, &[&event_ref1, &event_ref2]);
         get_events_and_compare(&tx, 1, &[&event_ref1, &event_ref2]);
         get_events_and_compare(&tx, 2, &[&event_ref2]);
@@ -238,7 +238,7 @@ pub mod tests {
         assert_eq!(result.unwrap(), 2); // Two events deleted
 
         get_events_and_compare(&tx, 0, &[
-            r#"{"2":{"name":"Fred","location":"Nowhere","spouseId":123}}"#]);
+            r#"{"2":{"name":"Fred","city":"Nowhere","spouse":123}}"#]);
         assert!(tx.commit().is_ok());
     }
 

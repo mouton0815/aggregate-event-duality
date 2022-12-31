@@ -23,8 +23,8 @@ impl PersonEvent {
     pub fn for_insert(person_id: u32, person: &PersonData) -> Self {
         Self::new(person_id, Some(PersonPatch {
             name: Some(person.name.clone()),
-            location: Patch::of_option(&person.location, false),
-            spouse_id: Patch::of_option(&person.spouse_id, false)
+            city: Patch::of_option(&person.city, false),
+            spouse: Patch::of_option(&person.spouse, false)
         }))
     }
 
@@ -47,23 +47,17 @@ mod tests {
 
     #[test]
     pub fn test_person_event_values() {
-        let person_event = PersonEvent::for_insert(1, &PersonData{
-            name: "Hans".to_string(),
-            location: Some("Berlin".to_string()),
-            spouse_id: Some(2)
-        });
+        let person = PersonData::new("Hans", Some("Berlin"), Some(2));
+        let person_event = PersonEvent::for_insert(1, &person);
 
-        let json_ref = r#"{"1":{"name":"Hans","location":"Berlin","spouseId":2}}"#;
+        let json_ref = r#"{"1":{"name":"Hans","city":"Berlin","spouse":2}}"#;
         serde_and_verify(&person_event, json_ref);
     }
 
     #[test]
     pub fn test_person_event_absent() {
-        let person_event = PersonEvent::for_update(1, &PersonPatch{
-            name: None,
-            location: Patch::Absent,
-            spouse_id: Patch::Absent
-        });
+        let patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
+        let person_event = PersonEvent::for_update(1, &patch);
 
         let json_ref = r#"{"1":{}}"#;
         serde_and_verify(&person_event, json_ref);
@@ -71,13 +65,10 @@ mod tests {
 
     #[test]
     pub fn test_person_event_null_values() {
-        let person_event = PersonEvent::for_update(1, &PersonPatch{
-            name: None,
-            location: Patch::Null,
-            spouse_id: Patch::Null
-        });
+        let patch = PersonPatch::new(None, Patch::Null, Patch::Null);
+        let person_event = PersonEvent::for_update(1, &patch);
 
-        let json_ref = r#"{"1":{"location":null,"spouseId":null}}"#;
+        let json_ref = r#"{"1":{"city":null,"spouse":null}}"#;
         serde_and_verify(&person_event, json_ref);
     }
 

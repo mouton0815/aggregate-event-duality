@@ -8,21 +8,21 @@ const CREATE_PERSON_TABLE : &'static str =
     "CREATE TABLE IF NOT EXISTS person (
         personId INTEGER NOT NULL PRIMARY KEY,
         name TEXT NOT NULL,
-        location TEXT,
-        spouseId INTEGER
+        city TEXT,
+        spouse INTEGER
     )";
 
 const INSERT_PERSON : &'static str =
-    "INSERT INTO person (name, location, spouseId) VALUES (?, ?, ?)";
+    "INSERT INTO person (name, city, spouse) VALUES (?, ?, ?)";
 
 const DELETE_PERSON : &'static str =
     "DELETE FROM person WHERE personId = ?";
 
 const SELECT_PERSONS : &'static str =
-    "SELECT personId, name, location, spouseId FROM person";
+    "SELECT personId, name, city, spouse FROM person";
 
 const SELECT_PERSON : &'static str =
-    "SELECT personId, name, location, spouseId FROM person WHERE personId = ?";
+    "SELECT personId, name, city, spouse FROM person WHERE personId = ?";
 
 
 pub struct PersonTable;
@@ -36,7 +36,7 @@ impl PersonTable {
 
     pub fn insert(tx: &Transaction, person: &PersonData) -> Result<u32> {
         debug!("Execute\n{}\nwith: {:?}", INSERT_PERSON, person);
-        let values = params![person.name, person.location, person.spouse_id];
+        let values = params![person.name, person.city, person.spouse];
         tx.execute(INSERT_PERSON, values)?;
         Ok(tx.last_insert_rowid() as u32)
     }
@@ -48,13 +48,13 @@ impl PersonTable {
             columns.push("name=?");
             values.push(&person.name);
         }
-        if !person.location.is_absent() {
-            columns.push("location=?");
-            values.push(&person.location);
+        if !person.city.is_absent() {
+            columns.push("city=?");
+            values.push(&person.city);
         }
-        if !person.spouse_id.is_absent() {
-            columns.push("spouseId=?");
-            values.push(&person.spouse_id);
+        if !person.spouse.is_absent() {
+            columns.push("spouse=?");
+            values.push(&person.spouse);
         }
         if columns.is_empty() {
             error!("Do not run update query because all non-id values are missing");
@@ -102,8 +102,8 @@ impl PersonTable {
     fn row_to_person_data(row: &Row) -> Result<(u32, PersonData)> {
         Ok((row.get(0)?, PersonData {
             name: row.get(1)?,
-            location: row.get(2)?,
-            spouse_id: row.get(3)?
+            city: row.get(2)?,
+            spouse: row.get(3)?
         }))
     }
 }

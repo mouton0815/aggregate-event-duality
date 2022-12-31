@@ -93,7 +93,7 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn insert(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
-        if let Some(name) = person.location.as_ref() {
+        if let Some(name) = person.city.as_ref() {
             let data = Self::select_or_init(tx, name)?;
             if let Some(patch) = LocationPatch::for_insert(&data, person) {
                 self.upsert(tx, name, data, patch)?;
@@ -103,10 +103,10 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn update(&mut self, tx: &Transaction, _: u32, person: &PersonData, patch: &PersonPatch) -> Result<()> {
-        if let Some(name) = person.location.as_ref() {
+        if let Some(name) = person.city.as_ref() {
             // The person had a location before the update - select the corresponding record.
             let data = Self::select_or_init(tx, name)?;
-            if patch.location.is_absent() {
+            if patch.city.is_absent() {
                 // The location of the person stays the same.
                 // Increment or decrement the counters for all aggregate values, except "total".
                 if let Some(patch) = LocationPatch::for_update(&data, person, patch) {
@@ -120,7 +120,7 @@ impl AggregatorTrait for LocationAggregator {
                 }
             }
         }
-        if let Patch::Value(name) = patch.location.as_ref() {
+        if let Patch::Value(name) = patch.city.as_ref() {
             // The location of the person changed.
             // Increment the counters of the new location.
             let data = Self::select_or_init(tx, name)?;
@@ -132,7 +132,7 @@ impl AggregatorTrait for LocationAggregator {
     }
 
     fn delete(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
-        if let Some(name) = person.location.as_ref() {
+        if let Some(name) = person.city.as_ref() {
             let data = Self::select_or_init(tx, name)?;
             if let Some(patch) = LocationPatch::for_delete(&data, person) {
                 self.update_or_delete(tx, name, data, patch)?;
