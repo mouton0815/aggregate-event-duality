@@ -15,11 +15,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let aggregator = AggregatorFacade::new(":memory:")?;
     let aggregator= Arc::new(Mutex::new(aggregator));
 
+    // Channel to inform the HTTP server and the delete scheduler to terminate.
+    // The termination signal is triggered by signal::ctrl_c() below.
     let (tx, rx1) = broadcast::channel(1);
     let rx2 = tx.subscribe();
 
-    let period = Duration::from_secs(10);
-    let deletion_task: MutexDeletionTask<rusqlite::Error> = aggregator.clone(); // Aggregator implements trait DeletionTask
+    // Start a task that periodically deletes older events.
+    // Note that AggregatorFacade implements trait DeletionTask.
+    let period = Duration::from_secs(120);
+    let deletion_task: MutexDeletionTask<rusqlite::Error> = aggregator.clone();
     let delete_scheduler = spawn_deletion_scheduler(&deletion_task, rx1, period);
 
     let http_server = spawn_http_server(&aggregator, rx2, 5);
