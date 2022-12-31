@@ -8,12 +8,20 @@ use futures_util::Stream;
 use log::error;
 use tokio::time::{Interval, interval};
 
+///
+/// Trait for custom fetcher implementations needed by [ScheduledStream](ScheduledStream).
+///
 pub trait Fetcher<T, E> {
     fn fetch(&mut self) -> Result<Vec<T>, E>;
 }
 
 pub type BoxedFetcher<T, E> = Box<dyn Fetcher<T, E> + Send>;
 
+///
+/// An implementation of [Stream](futures_util::Stream) that periodically fetches items
+/// from a source through a [Fetcher](Fetcher). While ``Fetcher::fetch()`` returns a vector
+/// of items, method ``poll_next()`` returns the items one-by-one, utilizing a buffer.
+///
 pub struct ScheduledStream<T, E> {
     interval: Interval,
     buffer: Box<VecDeque<T>>,
