@@ -15,8 +15,6 @@ use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::deletion_scheduler::DeletionTask;
 
-// TODO: Rename to PersonProcessor?
-
 ///
 /// This class is the facade to the REST handlers and the scheduler.
 /// It processes and stores person data and delegates to the aggregators.

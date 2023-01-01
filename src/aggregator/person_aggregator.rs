@@ -12,14 +12,13 @@ use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
 
-// TODO: Rename to PersonEventWriter?
-
 ///
 /// Writes events and revision for person changes and for that reason implements
 /// [AggregatorTrait](crate::aggregator::aggregator_trait::AggregatorTrait).
-/// The actual updates of table ```person``` are already done in
-/// [AggregatorFacade](crate::aggregator::aggregator_facade::AggregatorFacade)
-/// before delegating to the aggregators.
+///
+/// It is not actually an "aggregator" or person data, because the updates of table ```person```
+/// are already done in [AggregatorFacade](crate::aggregator::aggregator_facade::AggregatorFacade),
+/// just before ``AggregatorFacade`` delegates to the aggregators.
 ///
 pub struct PersonAggregator {
     timestamp: BoxedTimestamp

@@ -13,7 +13,7 @@ fn with_aggregator(aggregator: MutexAggregator)
     warp::any().map(move || aggregator.clone())
 }
 
-// TODO: Isn't there a simpler way??
+// Allows to pass any constant to a Warp filter
 fn with_constant<T:Send+Copy>(argument: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
     warp::any().map(move || argument)
 }
