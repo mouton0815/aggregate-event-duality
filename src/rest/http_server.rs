@@ -8,6 +8,8 @@ use crate::domain::event_type::EventType;
 use crate::domain::person_id::PersonId;
 use crate::rest::rest_handlers::{post_person, patch_person, delete_person, get_persons, get_events, get_locations};
 
+const FROM_REVISION_HEADER : &'static str = "X-From-Revision";
+
 fn with_aggregator(aggregator: MutexAggregator)
     -> impl Filter<Extract = (MutexAggregator,), Error = Infallible> + Clone {
     warp::any().map(move || aggregator.clone())
@@ -29,6 +31,7 @@ pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, rep
     let route_get_persons = warp::path(path_persons)
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
+        .and(with_constant(FROM_REVISION_HEADER))
         .and_then(get_persons);
 
     let route_post_person = warp::path(path_persons)
@@ -56,12 +59,13 @@ pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, rep
         .and(with_aggregator(aggregator.clone()))
         .and(with_constant(EventType::PERSON))
         .and(with_constant(repeat_every_secs))
-        .and(warp::header::optional::<usize>("X-From-Revision"))
+        .and(warp::header::optional::<usize>(FROM_REVISION_HEADER))
         .and_then(get_events);
 
     let route_get_locations = warp::path(path_locations)
         .and(warp::get())
         .and(with_aggregator(aggregator.clone()))
+        .and(with_constant(FROM_REVISION_HEADER))
         .and_then(get_locations);
 
     let route_get_location_events = warp::path(path_location_events)
@@ -69,7 +73,7 @@ pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, rep
         .and(with_aggregator(aggregator.clone()))
         .and(with_constant(EventType::LOCATION))
         .and(with_constant(repeat_every_secs))
-        .and(warp::header::optional::<usize>("X-From-Revision"))
+        .and(warp::header::optional::<usize>(FROM_REVISION_HEADER))
         .and_then(get_events);
 
     let routes = route_get_persons

@@ -68,12 +68,12 @@ pub async fn delete_person(aggregator: MutexAggregator, person_id: PersonId) -> 
     }
 }
 
-pub async fn get_persons(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn get_persons(aggregator: MutexAggregator, revision_header_name: &str) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_persons() {
         Ok(result) => {
             let (revision, persons) = result;
-            Ok(Box::new(reply::with_header(reply::json(&persons), "X-From-Revision", revision)))
+            Ok(Box::new(reply::with_header(reply::json(&persons), revision_header_name, revision)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
@@ -82,12 +82,12 @@ pub async fn get_persons(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, 
     }
 }
 
-pub async fn get_locations(aggregator: MutexAggregator) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn get_locations(aggregator: MutexAggregator, revision_header_name: &str) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_locations() {
         Ok(result) => {
             let (revision, locations) = result;
-            Ok(Box::new(reply::with_header(reply::json(&locations), "X-From-Revision", revision)))
+            Ok(Box::new(reply::with_header(reply::json(&locations), revision_header_name, revision)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
