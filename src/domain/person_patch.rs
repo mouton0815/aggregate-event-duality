@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use crate::domain::person_data::PersonData;
+use crate::domain::person_id::PersonId;
 use crate::util::patch::Patch;
 
 ///
@@ -26,12 +27,12 @@ pub struct PersonPatch {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Patch::is_absent")]
-    pub spouse: Patch<u32>
+    pub spouse: Patch<PersonId>
 }
 
 impl PersonPatch {
     /// Convenience function that takes &str literals
-    pub fn new(name: Option<&str>, city: Patch<&str>, spouse: Patch<u32>) -> Self {
+    pub fn new(name: Option<&str>, city: Patch<&str>, spouse: Patch<PersonId>) -> Self {
         Self {
             name: name.map(|n| String::from(n)),
             city: city.map(|l| String::from(l)),
@@ -54,6 +55,7 @@ impl PersonPatch {
 #[cfg(test)]
 mod tests {
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_id::PersonId;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
     use crate::util::serde_and_verify::tests::serde_and_verify;
@@ -67,7 +69,7 @@ mod tests {
 
     #[test]
     pub fn test_serde2() {
-        let person = PersonPatch::new(None, Patch::Value("Here"), Patch::Value(123));
+        let person = PersonPatch::new(None, Patch::Value("Here"), Patch::Value(PersonId::from(123)));
         let json_ref = r#"{"city":"Here","spouse":123}"#;
         serde_and_verify(&person, json_ref);
     }
@@ -89,7 +91,7 @@ mod tests {
 
     #[test]
     pub fn test_of2() {
-        let old = PersonData::new("Hans", Some("here"), Some(123));
+        let old = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         let new = PersonData::new("Hans", None, None);
         let cmp = PersonPatch::new(None, Patch::Null, Patch::Null);
         assert_eq!(PersonPatch::of(&old, &new), Some(cmp));
@@ -97,8 +99,8 @@ mod tests {
 
     #[test]
     pub fn test_of3() {
-        let old = PersonData::new("Hans", Some("here"), Some(123));
-        let new = PersonData::new("Hans", Some("here"), Some(123));
+        let old = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
+        let new = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         assert_eq!(PersonPatch::of(&old, &new), None);
     }
 

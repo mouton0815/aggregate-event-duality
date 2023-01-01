@@ -8,6 +8,7 @@ use warp::sse::Event;
 use crate::aggregator::aggregator_facade::MutexAggregator;
 use crate::domain::event_type::EventType;
 use crate::domain::person_data::PersonData;
+use crate::domain::person_id::PersonId;
 use crate::domain::person_patch::PersonPatch;
 use crate::rest::event_fetcher::EventFetcher;
 use crate::util::scheduled_stream::ScheduledStream;
@@ -35,7 +36,7 @@ pub async fn post_person(aggregator: MutexAggregator, path: &str, person: Person
     }
 }
 
-pub async fn patch_person(aggregator: MutexAggregator, person_id: u32, person: PersonPatch) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn patch_person(aggregator: MutexAggregator, person_id: PersonId, person: PersonPatch) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.update(person_id, &person) {
         Ok(result) => {
@@ -51,7 +52,7 @@ pub async fn patch_person(aggregator: MutexAggregator, person_id: u32, person: P
     }
 }
 
-pub async fn delete_person(aggregator: MutexAggregator, person_id: u32) -> Result<Box<dyn Reply>, Infallible> {
+pub async fn delete_person(aggregator: MutexAggregator, person_id: PersonId) -> Result<Box<dyn Reply>, Infallible> {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.delete(person_id) {
         Ok(result) => {

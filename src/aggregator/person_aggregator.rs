@@ -7,6 +7,7 @@ use crate::database::revision_table::RevisionTable;
 use crate::domain::event_type::EventType;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_event::PersonEvent;
+use crate::domain::person_id::PersonId;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
@@ -51,21 +52,21 @@ impl AggregatorTrait for PersonAggregator {
         PersonEventTable::create_table(&connection)
     }
 
-    fn insert(&mut self, tx: &Transaction, person_id: u32, person: &PersonData) -> Result<()> {
+    fn insert(&mut self, tx: &Transaction, id: PersonId, person: &PersonData) -> Result<()> {
         let timestamp = self.timestamp.as_secs();
-        let event = PersonEvent::for_insert(person_id, person);
+        let event = PersonEvent::for_insert(id, person);
         self.write_event_and_revision(&tx, timestamp, event)
     }
 
-    fn update(&mut self, tx: &Transaction, person_id: u32, _: &PersonData, patch: &PersonPatch) -> Result<()> {
+    fn update(&mut self, tx: &Transaction, id: PersonId, _: &PersonData, patch: &PersonPatch) -> Result<()> {
         let timestamp = self.timestamp.as_secs();
-        let event = PersonEvent::for_update(person_id, &patch);
+        let event = PersonEvent::for_update(id, &patch);
         self.write_event_and_revision(&tx, timestamp, event)
     }
 
-    fn delete(&mut self, tx: &Transaction, person_id: u32, _: &PersonData) -> Result<()> {
+    fn delete(&mut self, tx: &Transaction, id: PersonId, _: &PersonData) -> Result<()> {
         let timestamp = self.timestamp.as_secs();
-        let event = PersonEvent::for_delete(person_id);
+        let event = PersonEvent::for_delete(id);
         self.write_event_and_revision(&tx, timestamp, event)
     }
 
@@ -96,6 +97,7 @@ pub mod tests {
     use crate::database::revision_table::RevisionTable;
     use crate::domain::event_type::EventType;
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_id::PersonId;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
@@ -112,7 +114,7 @@ pub mod tests {
 
         let person = PersonData::new("Hans", Some("Here"), None);
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
+        assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
 
         let events_ref = [r#"{"1":{"name":"Hans","city":"Here"}}"#];
         check_events(&tx, &events_ref);
@@ -125,10 +127,10 @@ pub mod tests {
         let tx = conn.transaction().unwrap();
 
         let person = PersonData::new("Hans", Some("Here"), None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Null, Patch::Value(123));
+        let patch = PersonPatch::new(Some("Inge"), Patch::Null, Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
-        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+        assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
+        assert!(aggregator.update(&tx, PersonId::from(1), &person, &patch).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans","city":"Here"}}"#,
@@ -145,8 +147,8 @@ pub mod tests {
 
         let person = PersonData::new("Hans", None, None);
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
-        assert!(aggregator.delete(&tx, 1, &person).is_ok());
+        assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
+        assert!(aggregator.delete(&tx, PersonId::from(1), &person).is_ok());
 
         let events_ref = [
             r#"{"1":{"name":"Hans"}}"#,
@@ -174,7 +176,7 @@ pub mod tests {
         assert!(persons_res.is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(1, PersonData::new("Hans", None, None));
+        person_map.put(PersonId::from(1), PersonData::new("Hans", None, None));
         let person_ref = (2, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
         assert!(tx.commit().is_ok());
@@ -204,10 +206,10 @@ pub mod tests {
         let tx = conn.transaction().unwrap();
 
         let person = PersonData::new("Hans", None, None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(123));
+        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
-        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+        assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
+        assert!(aggregator.update(&tx, PersonId::from(1), &person, &patch).is_ok());
 
         let event_ref1 = r#"{"1":{"name":"Hans"}}"#;
         let event_ref2 = r#"{"1":{"name":"Inge","city":"Nowhere","spouse":123}}"#;
@@ -225,11 +227,11 @@ pub mod tests {
 
         let person1 = PersonData::new("Hans", None, None);
         let person2 = PersonData::new("Inge", None, None);
-        let patch2 = PersonPatch::new(Some("Fred"), Patch::Value("Nowhere"), Patch::Value(123));
+        let patch2 = PersonPatch::new(Some("Fred"), Patch::Value("Nowhere"), Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
-        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
-        assert!(aggregator.update(&tx, 2, &person2, &patch2).is_ok());
+        assert!(aggregator.insert(&tx, PersonId::from(1), &person1).is_ok());
+        assert!(aggregator.insert(&tx, PersonId::from(2), &person2).is_ok());
+        assert!(aggregator.update(&tx, PersonId::from(2), &person2, &patch2).is_ok());
 
         // IncrementalTimestamp is at 4 inside delete_events() below; minus 1 yields 3,
         // so it deletes all events <3 (i.e. the first two) and keeps the last one

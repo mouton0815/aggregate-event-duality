@@ -10,6 +10,7 @@ use crate::database::revision_table::RevisionTable;
 use crate::domain::event_type::EventType;
 use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
+use crate::domain::person_id::PersonId;
 use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::deletion_scheduler::DeletionTask;
@@ -41,7 +42,7 @@ impl AggregatorFacade {
         Ok(Self{ connection, person_aggr, location_aggr })
     }
 
-    pub fn insert(&mut self, person: &PersonData) -> Result<(u32, PersonData)> {
+    pub fn insert(&mut self, person: &PersonData) -> Result<(PersonId, PersonData)> {
         let tx = self.connection.transaction()?;
         let person_id = PersonTable::insert(&tx, &person)?;
         self.person_aggr.insert(&tx, person_id, &person)?;
@@ -51,7 +52,7 @@ impl AggregatorFacade {
         Ok((person_id, person.clone()))
     }
 
-    pub fn update(&mut self, person_id: u32, patch: &PersonPatch) -> Result<Option<PersonData>> {
+    pub fn update(&mut self, person_id: PersonId, patch: &PersonPatch) -> Result<Option<PersonData>> {
         let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
@@ -73,7 +74,7 @@ impl AggregatorFacade {
         }
     }
 
-    pub fn delete(&mut self, person_id: u32) -> Result<bool> {
+    pub fn delete(&mut self, person_id: PersonId) -> Result<bool> {
         let tx = self.connection.transaction()?;
         match PersonTable::select_by_id(&tx, person_id)? {
             Some(before) => {
@@ -146,6 +147,7 @@ mod tests {
     use crate::domain::location_data::LocationData;
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_id::PersonId;
     use crate::domain::person_map::PersonMap;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
@@ -162,7 +164,7 @@ mod tests {
         let person_res = aggregator.insert(&person);
         assert!(person_res.is_ok());
         let (person_id, person_data) = person_res.unwrap();
-        assert_eq!(person_id, 1);
+        assert_eq!(person_id, PersonId::from(1));
         assert_eq!(person_data, person);
     }
 
@@ -171,12 +173,12 @@ mod tests {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Here"), Patch::Value(123));
+        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Here"), Patch::Value(PersonId::from(123)));
         assert!(aggregator.insert(&person).is_ok());
-        let person_res = aggregator.update(1, &patch);
+        let person_res = aggregator.update(PersonId::from(1), &patch);
         assert!(person_res.is_ok());
 
-        let person_ref = PersonData::new("Inge", Some("Here"), Some(123));
+        let person_ref = PersonData::new("Inge", Some("Here"), Some(PersonId::from(123)));
         assert_eq!(person_res.unwrap(), Some(person_ref));
     }
 
@@ -185,7 +187,7 @@ mod tests {
         let mut aggregator = create_aggregator();
 
         let person_update = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Null);
-        let person_res = aggregator.update(1, &person_update);
+        let person_res = aggregator.update(PersonId::from(1), &person_update);
         assert!(person_res.is_ok());
         assert_eq!(person_res.unwrap(), None);
     }
@@ -196,7 +198,7 @@ mod tests {
 
         let person = PersonData::new("Hans", None, None);
         assert!(aggregator.insert(&person).is_ok());
-        let person_res = aggregator.delete(1);
+        let person_res = aggregator.delete(PersonId::from(1));
         assert!(person_res.is_ok());
         assert_eq!(person_res.unwrap(), true);
     }
@@ -205,7 +207,7 @@ mod tests {
     pub fn test_delete_missing() {
         let mut aggregator = create_aggregator();
 
-        let person_res = aggregator.delete(1);
+        let person_res = aggregator.delete(PersonId::from(1));
         assert!(person_res.is_ok());
         assert_eq!(person_res.unwrap(), false);
     }
@@ -235,7 +237,7 @@ mod tests {
         assert!(persons_res.is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(1, PersonData::new("Hans", None, None));
+        person_map.put(PersonId::from(1), PersonData::new("Hans", None, None));
         let person_ref = (1, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
     }
@@ -244,7 +246,7 @@ mod tests {
     pub fn test_get_locations() {
         let mut aggregator = create_aggregator();
 
-        let person1 = PersonData::new("Hans", Some("here"), Some(123));
+        let person1 = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         let person2 = PersonData::new("Inge", Some("there"), None);
         let person3 = PersonData::new("Fred", Some("here"), None);
         assert!(aggregator.insert(&person1).is_ok());
@@ -265,7 +267,7 @@ mod tests {
     pub fn test_get_events() {
         let mut aggregator = create_aggregator();
 
-        let person1 = PersonData::new("Hans", Some("here"), Some(123));
+        let person1 = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         let person2 = PersonData::new("Inge", Some("there"), None);
         let person3 = PersonData::new("Fred", Some("here"), None);
         assert!(aggregator.insert(&person1).is_ok());

@@ -5,6 +5,7 @@ use tokio::task::JoinHandle;
 use warp::Filter;
 use crate::aggregator::aggregator_facade::MutexAggregator;
 use crate::domain::event_type::EventType;
+use crate::domain::person_id::PersonId;
 use crate::rest::rest_handlers::{post_person, patch_person, delete_person, get_persons, get_events, get_locations};
 
 fn with_aggregator(aggregator: MutexAggregator)
@@ -40,14 +41,14 @@ pub fn spawn_http_server(aggregator: &MutexAggregator, mut rx: Receiver<()>, rep
     let route_patch_person = warp::path(path_persons)
         .and(warp::patch())
         .and(with_aggregator(aggregator.clone()))
-        .and(warp::path::param::<u32>())
+        .and(warp::path::param::<PersonId>())
         .and(warp::body::json())
         .and_then(patch_person);
 
     let route_delete_person = warp::path(path_persons)
         .and(warp::delete())
         .and(with_aggregator(aggregator.clone()))
-        .and(warp::path::param::<u32>())
+        .and(warp::path::param::<PersonId>())
         .and_then(delete_person);
 
     let route_get_person_events = warp::path(path_person_events)

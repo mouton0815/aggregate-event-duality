@@ -10,6 +10,7 @@ use crate::domain::location_event::LocationEvent;
 use crate::domain::location_map::LocationMap;
 use crate::domain::location_patch::LocationPatch;
 use crate::domain::person_data::PersonData;
+use crate::domain::person_id::PersonId;
 use crate::domain::person_patch::PersonPatch;
 use crate::util::patch::Patch;
 use crate::util::timestamp::{BoxedTimestamp, UnixTimestamp};
@@ -31,8 +32,8 @@ impl LocationAggregator {
         Self{ timestamp }
     }
 
-    fn select_or_init(tx: &Transaction, name: &str) -> Result<LocationData> {
-        Ok(match LocationTable::select_by_name(tx, name)? {
+    fn select_or_init(tx: &Transaction, city: &str) -> Result<LocationData> {
+        Ok(match LocationTable::select_by_name(tx, city)? {
             Some(location_data) => location_data,
             None => LocationData::new(0, 0)
         })
@@ -43,31 +44,31 @@ impl LocationAggregator {
     /// corresponding [LocationEvent](crate::domain::location_event::LocationEvent),
     /// writes it to database, and increments the revision number.
     ///
-    fn upsert(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
+    fn upsert(&mut self, tx: &Transaction, city: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
         data.apply_patch(&patch);
-        LocationTable::upsert(tx, name, &data)?;
-        let event = LocationEvent::new(name, Some(patch));
+        LocationTable::upsert(tx, city, &data)?;
+        let event = LocationEvent::new(city, Some(patch));
         self.write_event_and_revision(tx, event)
     }
 
     ///
     /// Private method that performs an update or a delete for the ``location`` table.
-    /// The deletion is chosen if the no further persons with the given location ``name``
-    /// exist (the ``total`` counter became 0). The method then creates the corresponding
+    /// The deletion is chosen if the no further persons with the given ``city`` exists
+    /// (the ``total`` counter became 0). The method then creates the corresponding
     /// [LocationEvent](crate::domain::location_event::LocationEvent),
     /// writes it to database, and increments the revision number.
     ///
-    fn update_or_delete(&mut self, tx: &Transaction, name: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
+    fn update_or_delete(&mut self, tx: &Transaction, city: &str, mut data: LocationData, patch: LocationPatch) -> Result<()> {
         // If after an update or delete the attribute "total" is 0, then delete the corresponding
         // location record and write an event that indicates deletion, i.e. { <location>: null }.
         let event : LocationEvent;
         if patch.total.is_some() && patch.total.unwrap() == 0 {
-            LocationTable::delete(tx, name)?;
-            event = LocationEvent::new(name, None);
+            LocationTable::delete(tx, city)?;
+            event = LocationEvent::new(city, None);
         } else {
             data.apply_patch(&patch);
-            LocationTable::upsert(tx, name, &data)?;
-            event = LocationEvent::new(name, Some(patch));
+            LocationTable::upsert(tx, city, &data)?;
+            event = LocationEvent::new(city, Some(patch));
         }
         self.write_event_and_revision(tx, event)
     }
@@ -92,31 +93,31 @@ impl AggregatorTrait for LocationAggregator {
         LocationEventTable::create_table(connection)
     }
 
-    fn insert(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
-        if let Some(name) = person.city.as_ref() {
-            let data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_insert(&data, person) {
-                self.upsert(tx, name, data, patch)?;
+    fn insert(&mut self, tx: &Transaction, _: PersonId, person: &PersonData) -> Result<()> {
+        if let Some(city) = person.city.as_ref() {
+            let location = Self::select_or_init(tx, city)?;
+            if let Some(patch) = LocationPatch::for_insert(&location, person) {
+                self.upsert(tx, city, location, patch)?;
             }
         }
         Ok(())
     }
 
-    fn update(&mut self, tx: &Transaction, _: u32, person: &PersonData, patch: &PersonPatch) -> Result<()> {
-        if let Some(name) = person.city.as_ref() {
+    fn update(&mut self, tx: &Transaction, _: PersonId, person: &PersonData, patch: &PersonPatch) -> Result<()> {
+        if let Some(city) = person.city.as_ref() {
             // The person had a location before the update - select the corresponding record.
-            let data = Self::select_or_init(tx, name)?;
+            let location = Self::select_or_init(tx, city)?;
             if patch.city.is_absent() {
                 // The location of the person stays the same.
                 // Increment or decrement the counters for all aggregate values, except "total".
-                if let Some(patch) = LocationPatch::for_update(&data, person, patch) {
-                    self.upsert(tx, name, data, patch)?;
+                if let Some(patch) = LocationPatch::for_update(&location, person, patch) {
+                    self.upsert(tx, city, location, patch)?;
                 }
             } else {
                 // The location of the person changed.
                 // Decrement the counters of the old location or delete the location record.
-                if let Some(patch) = LocationPatch::for_delete(&data, person) {
-                    self.update_or_delete(tx, name, data, patch)?;
+                if let Some(patch) = LocationPatch::for_delete(&location, person) {
+                    self.update_or_delete(tx, city, location, patch)?;
                 }
             }
         }
@@ -131,11 +132,11 @@ impl AggregatorTrait for LocationAggregator {
         Ok(())
     }
 
-    fn delete(&mut self, tx: &Transaction, _: u32, person: &PersonData) -> Result<()> {
-        if let Some(name) = person.city.as_ref() {
-            let data = Self::select_or_init(tx, name)?;
-            if let Some(patch) = LocationPatch::for_delete(&data, person) {
-                self.update_or_delete(tx, name, data, patch)?;
+    fn delete(&mut self, tx: &Transaction, _: PersonId, person: &PersonData) -> Result<()> {
+        if let Some(city) = person.city.as_ref() {
+            let location = Self::select_or_init(tx, city)?;
+            if let Some(patch) = LocationPatch::for_delete(&location, person) {
+                self.update_or_delete(tx, city, location, patch)?;
             }
         }
         Ok(())
@@ -171,6 +172,7 @@ mod tests {
     use crate::domain::location_data::LocationData;
     use crate::domain::location_map::LocationMap;
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_id::PersonId;
     use crate::domain::person_patch::PersonPatch;
     use crate::util::patch::Patch;
     use crate::util::timestamp::tests::IncrementalTimestamp;
@@ -185,8 +187,9 @@ mod tests {
         let tx = conn.transaction().unwrap();
         let mut aggregator = create_aggregator();
 
+        let dummy_id = PersonId::from(1);
         for person in persons {
-            assert!(aggregator.insert(&tx, 1, &person).is_ok());
+            assert!(aggregator.insert(&tx, dummy_id, &person).is_ok());
         }
 
         check_record(&tx, "here", record_ref);
@@ -197,7 +200,7 @@ mod tests {
     #[test]
     pub fn test_insert_with_spouse() {
         test_insert(
-            &[PersonData::new("Hans", Some("here"), Some(123))],
+            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]);
     }
@@ -228,10 +231,11 @@ mod tests {
         let tx = conn.transaction().unwrap();
         let mut aggregator = create_aggregator();
 
+        let dummy_id = PersonId::from(1);
         for person in persons {
-            assert!(aggregator.insert(&tx, 1, &person).is_ok());
+            assert!(aggregator.insert(&tx, dummy_id, &person).is_ok());
         }
-        assert!(aggregator.update(&tx, 1, &persons.last().unwrap(), &patch).is_ok());
+        assert!(aggregator.update(&tx, dummy_id, &persons.last().unwrap(), &patch).is_ok());
 
         check_record(&tx, "here", record_ref);
         check_events(&tx, events_ref);
@@ -241,7 +245,7 @@ mod tests {
     #[test]
     pub fn test_update_keep_location_keep_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), Some(123))],
+            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Absent, Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]); // No update event
@@ -251,7 +255,7 @@ mod tests {
     pub fn test_update_keep_location_set_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("here"), None)],
-            PersonPatch::new(None, Patch::Absent, Patch::Value(123)),
+            PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[
                 r#"{"here":{"total":1,"married":0}}"#,
@@ -261,7 +265,7 @@ mod tests {
     #[test]
     pub fn test_update_keep_location_delete_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), Some(123))],
+            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Absent, Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -272,7 +276,7 @@ mod tests {
     #[test]
     pub fn test_update_set_location_keep_spouse() {
         test_update(
-            &[PersonData::new("Hans", None, Some(123))],
+            &[PersonData::new("Hans", None, Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]);
@@ -282,7 +286,7 @@ mod tests {
     pub fn test_update_set_location_set_spouse() {
         test_update(
             &[PersonData::new("Hans", None, None)],
-            PersonPatch::new(None, Patch::Value("here"), Patch::Value(123)),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]);
     }
@@ -290,7 +294,7 @@ mod tests {
     #[test]
     pub fn test_update_set_location_delete_spouse() {
         test_update(
-            &[PersonData::new("Hans", None, Some(123))],
+            &[PersonData::new("Hans", None, Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
             &[r#"{"here":{"total":1,"married":0}}"#]);
@@ -301,7 +305,7 @@ mod tests {
         test_update(
             &[
                 PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), Some(456))],
+                PersonData::new("Inge", Some("here"), Some(PersonId::from(456)))],
             PersonPatch::new(None, Patch::Null, Patch::Absent),
             Some(LocationData::new(1, 0)),
             &[
@@ -315,7 +319,7 @@ mod tests {
         test_update(
             &[
                 PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), Some(456))],
+                PersonData::new("Inge", Some("here"), Some(PersonId::from(456)))],
             PersonPatch::new(None, Patch::Null, Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -327,7 +331,7 @@ mod tests {
     #[test]
     pub fn test_update_remove_last_location() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), Some(123))],
+            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Null, Patch::Absent),
             None,
             &[
@@ -340,7 +344,7 @@ mod tests {
         test_update(
             &[
                 PersonData::new("Hans", Some("there"), None),
-                PersonData::new("Inge", Some("there"), Some(123))],
+                PersonData::new("Inge", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[
@@ -353,7 +357,7 @@ mod tests {
     #[test]
     pub fn test_update_change_last_location_keep_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("there"), Some(123))],
+            &[PersonData::new("Hans", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[
@@ -368,7 +372,7 @@ mod tests {
             &[
                 PersonData::new("Hans", Some("there"), None),
                 PersonData::new("Inge", Some("there"), None)],
-            PersonPatch::new(None, Patch::Value("here"), Patch::Value(123)),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[
                 r#"{"there":{"total":1,"married":0}}"#,
@@ -381,7 +385,7 @@ mod tests {
     pub fn test_update_change_last_location_set_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("there"), None)],
-            PersonPatch::new(None, Patch::Value("here"), Patch::Value(123)),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[
                 r#"{"there":{"total":1,"married":0}}"#,
@@ -394,7 +398,7 @@ mod tests {
         test_update(
             &[
                 PersonData::new("Hans", Some("there"), None),
-                PersonData::new("Inge", Some("there"), Some(123))],
+                PersonData::new("Inge", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -407,7 +411,7 @@ mod tests {
     #[test]
     pub fn test_update_change_last_location_delete_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("there"), Some(123))],
+            &[PersonData::new("Hans", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -422,10 +426,11 @@ mod tests {
         let tx = conn.transaction().unwrap();
         let mut aggregator = create_aggregator();
 
+        let dummy_id = PersonId::from(1);
         for person in persons {
-            assert!(aggregator.insert(&tx, 1, &person).is_ok());
+            assert!(aggregator.insert(&tx, dummy_id, &person).is_ok());
         }
-        assert!(aggregator.delete(&tx, 1, &persons.last().unwrap()).is_ok());
+        assert!(aggregator.delete(&tx, dummy_id, &persons.last().unwrap()).is_ok());
 
         check_record(&tx, "here", record_ref);
         check_events(&tx, events_ref);
@@ -437,7 +442,7 @@ mod tests {
         test_delete(
             &[
                 PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), Some(123))
+                PersonData::new("Inge", Some("here"), Some(PersonId::from(123)))
             ],
             Some(LocationData::new(1, 0)),
             &[
@@ -449,7 +454,7 @@ mod tests {
     #[test]
     pub fn test_delete_last() {
         test_delete(
-            &[PersonData::new("Hans", Some("here"), Some(123))],
+            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             None,
             &[
                 r#"{"here":{"total":1,"married":1}}"#,
@@ -503,11 +508,12 @@ mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
+        let dummy_id = PersonId::from(1);
         let person = PersonData::new("Hans", Some("here"), None);
-        let patch = PersonPatch::new(None, Patch::Absent, Patch::Value(123));
+        let patch = PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person).is_ok());
-        assert!(aggregator.update(&tx, 1, &person, &patch).is_ok());
+        assert!(aggregator.insert(&tx, dummy_id, &person).is_ok());
+        assert!(aggregator.update(&tx, dummy_id, &person, &patch).is_ok());
 
         let event_ref1 = r#"{"here":{"total":1,"married":0}}"#;
         let event_ref2 = r#"{"here":{"married":1}}"#;
@@ -523,13 +529,14 @@ mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
+        let dummy_id = PersonId::from(1);
         let person1 = PersonData::new("Hans", Some("here"), None);
         let person2 = PersonData::new("Inge", Some("there"), None);
-        let patch2 = PersonPatch::new(None, Patch::Value("here"), Patch::Value(123));
+        let patch2 = PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
-        assert!(aggregator.insert(&tx, 1, &person1).is_ok());
-        assert!(aggregator.insert(&tx, 2, &person2).is_ok());
-        assert!(aggregator.update(&tx, 2, &person2, &patch2).is_ok());
+        assert!(aggregator.insert(&tx, dummy_id, &person1).is_ok());
+        assert!(aggregator.insert(&tx, dummy_id, &person2).is_ok());
+        assert!(aggregator.update(&tx, dummy_id, &person2, &patch2).is_ok());
 
         // IncrementalTimestamp is at 5 inside delete_events() below (note that  update()
         // creates two events; minus 2 yields 3, so it deletes all events <3 (i.e. the first two)

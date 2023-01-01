@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use crate::domain::person_id::PersonId;
 
 ///
 /// Person data as received via ``POST`` requests and stored in
@@ -17,12 +18,12 @@ pub struct PersonData {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub spouse: Option<u32>
+    pub spouse: Option<PersonId>
 }
 
 impl PersonData {
     /// Convenience function that takes &str literals
-    pub fn new(name: &str, city: Option<&str>, spouse: Option<u32>) -> Self {
+    pub fn new(name: &str, city: Option<&str>, spouse: Option<PersonId>) -> Self {
         Self {
             name: String::from(name),
             city: city.map(|l| String::from(l)),
@@ -34,11 +35,12 @@ impl PersonData {
 #[cfg(test)]
 mod tests {
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_id::PersonId;
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
     pub fn test_person1() {
-        let person_ref = PersonData::new("Hans", None, Some(2));
+        let person_ref = PersonData::new("Hans", None, Some(PersonId::from(2)));
         let json_ref = r#"{"name":"Hans","spouse":2}"#;
         serde_and_verify(&person_ref, json_ref);
     }

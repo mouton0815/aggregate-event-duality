@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use serde::{Deserialize,Serialize};
 use crate::domain::person_data::PersonData;
+use crate::domain::person_id::PersonId;
 
 ///
 /// A map of [PersonData](crate::domain::person_data::PersonData) objects with their ids as keys.
@@ -8,14 +9,14 @@ use crate::domain::person_data::PersonData;
 /// <code>{ <person_id>: <person_data>, ... }</code>.
 ///
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-pub struct PersonMap(BTreeMap<u32, PersonData>); // TODO: Keys in JSON are always strings
+pub struct PersonMap(BTreeMap<PersonId, PersonData>);
 
 impl PersonMap {
     pub fn new() -> Self {
         Self{ 0: BTreeMap::new() }
     }
 
-    pub fn put(&mut self, person_id: u32, person_data: PersonData) {
+    pub fn put(&mut self, person_id: PersonId, person_data: PersonData) {
         self.0.insert(person_id, person_data);
     }
 
@@ -23,7 +24,7 @@ impl PersonMap {
         self.0.len()
     }
 
-    pub fn get(&self, person_id: u32) -> &PersonData {
+    pub fn get(&self, person_id: PersonId) -> &PersonData {
         self.0.get(&person_id).unwrap() // Panic accepted
     }
 }
@@ -31,16 +32,17 @@ impl PersonMap {
 #[cfg(test)]
 mod tests {
     use crate::domain::person_data::PersonData;
+    use crate::domain::person_id::PersonId;
     use crate::domain::person_map::PersonMap;
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
     pub fn test_put() {
         let mut map = PersonMap::new();
-        map.put(1, PersonData::new("Hans", Some("Berlin"), Some(2)));
-        map.put(2, PersonData::new("Inge", Some("Berlin"), Some(1)));
+        map.put(PersonId::from(1), PersonData::new("Hans", Some("Berlin"), Some(PersonId::from(2))));
+        map.put(PersonId::from(2), PersonData::new("Inge", None, Some(PersonId::from(1))));
 
-        let json_ref = r#"{"1":{"name":"Hans","city":"Berlin","spouse":2},"2":{"name":"Inge","city":"Berlin","spouse":1}}"#;
+        let json_ref = r#"{"1":{"name":"Hans","city":"Berlin","spouse":2},"2":{"name":"Inge","spouse":1}}"#;
         serde_and_verify(&map, json_ref);
     }
 
@@ -55,8 +57,8 @@ mod tests {
     pub fn test_get_and_len() {
         let person = PersonData::new("Inge", Some("Nowhere"), None);
         let mut map = PersonMap::new();
-        map.put(5, person.clone());
+        map.put(PersonId::from(5), person.clone());
         assert_eq!(map.len(), 1);
-        assert_eq!(map.get(5), &person);
+        assert_eq!(map.get(PersonId::from(5)), &person);
     }
 }

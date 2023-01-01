@@ -1,6 +1,7 @@
 use std::time::Duration;
 use rusqlite::{Connection, Result, Transaction};
 use crate::domain::person_data::PersonData;
+use crate::domain::person_id::PersonId;
 use crate::domain::person_patch::PersonPatch;
 
 pub trait AggregatorTrait {
@@ -8,9 +9,9 @@ pub trait AggregatorTrait {
 
     fn create_tables(&mut self, connection: &Connection) -> Result<()>;
 
-    fn insert(&mut self, tx: &Transaction, person_id: u32, person: &PersonData) -> Result<()>;
-    fn update(&mut self, tx: &Transaction, person_id: u32, person: &PersonData, patch: &PersonPatch) -> Result<()>;
-    fn delete(&mut self, tx: &Transaction, person_id: u32, person: &PersonData) -> Result<()>;
+    fn insert(&mut self, tx: &Transaction, id: PersonId, data: &PersonData) -> Result<()>;
+    fn update(&mut self, tx: &Transaction, id: PersonId, data: &PersonData, patch: &PersonPatch) -> Result<()>;
+    fn delete(&mut self, tx: &Transaction, id: PersonId, data: &PersonData) -> Result<()>;
 
     fn get_all(&mut self, tx: &Transaction) -> Result<(usize, Self::Records)>;
 
