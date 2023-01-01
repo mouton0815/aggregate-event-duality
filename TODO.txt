@@ -10,7 +10,7 @@
 [x] Move event writing to different files
 [x] Rename src/aggregator/person_aggregator.rs -> src/aggregator.rs
 [x] Scheduler for event deletion
-[ ] Node.js consumer
+[x] Node.js consumer
 [ ] Apply Patch changes to JsonTernary. Publish JsonTernary. Import JsonTernary instead of Patch (use type alias)
 [x] Remove ON CONFLICT from person table as conflicts cannot happen
 [x] Migrate location stuff to location statistics

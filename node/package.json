@@ -1,0 +1,14 @@
+{
+  "name": "stream-table-client",
+  "version": "1.0.0",
+  "description": "A node.js client that first gets person records and then reads and applies events",
+  "type": "module",
+  "main": "client.js",
+  "author": "torsten.schlieder@gmx.net",
+  "license": "MIT",
+  "dependencies": {
+    "eventsource": "^2.0.2",
+    "json-merge-patch": "^1.0.2",
+    "node-fetch": "^3.3.0"
+  }
+}
