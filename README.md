@@ -55,7 +55,7 @@ This holds for the JSON Merge Patch protocol.
 
 To match aggregate state and event, another table stores the latest _revision_ of the aggregate.
 Every event in the outbox event table is annotated with the aggregate revision.
-The aggregate endpoint delivers the revision in header ``X-From-Revision``.
+The aggregate endpoint delivers the revision in header ``X-Revision``.
 ```shell
 curl -D - http://localhost:3000/persons
 ```
@@ -63,11 +63,11 @@ produces
 ```shell
 HTTP/1.1 200 OK
 content-type: application/json
-x-from-revision: 7
+x-revision: 7
 ```
 After reading the aggregate, the consumer can use the revision value to subscribe to all subsequent change events:
 ```shell
-curl -N -H "X-From-Revision: 8" http://localhost:3000/person-events
+curl -N -H "X-Revision: 8" http://localhost:3000/person-events
 ```
 Note that the consumer may also use 7 or any smaller value instead, because the events are idempotent.
 The only limitation is the event retention time on the server, which perodically deletes older events.
@@ -111,7 +111,7 @@ curl http://localhost:3000/locations
 ```
 The corresponding change streams can be accessed via
 ```shell
-curl -N -H "X-From-Revision: 1" http://localhost:3000/person-events
-curl -N -H "X-From-Revision: 1" http://localhost:3000/location-events
+curl -N -H "X-Revision: 1" http://localhost:3000/person-events
+curl -N -H "X-Revision: 1" http://localhost:3000/location-events
 ```
 For more examples, see [curl-examples.sh](curl-examples.sh).

@@ -14,4 +14,4 @@ echo '\n===== location aggregate ====='
 curl http://localhost:3000/locations
 
 echo '\n===== location events ====='
-curl -N -H 'X-From-Revision: 1' http://localhost:3000/location-events
+curl -N -H 'X-Revision: 1' http://localhost:3000/location-events
