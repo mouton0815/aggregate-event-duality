@@ -43,14 +43,14 @@ mod tests {
     #[test]
     pub fn test_apply_patch() {
         let mut loc = LocationData::new(1, 3);
-        loc.apply_patch(&LocationPatch::new(Some(2), Some(4)));
+        loc.apply_patch(&LocationPatch{ total: Some(2), married: Some(4) });
         assert_eq!(loc, LocationData::new(2, 4));
     }
 
     #[test]
     pub fn test_apply_patch_no_change() {
         let mut loc = LocationData::new(1, 3);
-        loc.apply_patch(&LocationPatch::new(None, None));
+        loc.apply_patch(&LocationPatch{ total: None, married: None });
         assert_eq!(loc, LocationData::new(1, 3));
     }
 }

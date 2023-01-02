@@ -27,7 +27,8 @@ pub struct LocationPatch {
 }
 
 impl LocationPatch {
-    pub fn new(total: Option<usize>, married: Option<usize>) -> Self {
+    /// Private constructor
+    fn new(total: Option<usize>, married: Option<usize>) -> Self {
         Self { total, married }
     }
 
@@ -40,8 +41,9 @@ impl LocationPatch {
     ///
     pub fn for_insert(data: &LocationData, person: &PersonData) -> Option<Self> {
         if person.city.is_some() { // Should be checked by the caller (could be an assertion)
+            let always_include = data.total == 0;
             let total = Some(data.total + 1);
-            let married = Self::optional_increment(data.married, person.spouse, data.total);
+            let married = Self::value_for_insert(data.married, person.spouse, always_include);
             // Further updates of data fields here ...
             Some(Self::new(total, married))
         } else {
@@ -61,7 +63,7 @@ impl LocationPatch {
         // Should be checked by the caller (could be an assertion):
         if person.city.is_some() && patch.city.is_absent() {
             // Location of person remains, adapt all counters except total
-            let married = Self::conditional_update(data.married, patch.spouse);
+            let married = Self::value_for_update(data.married, patch.spouse);
             // Further updates of data fields here ...
             if married.is_some() {
                 return Some(Self::new(None, married));
@@ -81,8 +83,10 @@ impl LocationPatch {
     pub fn for_change(data: &LocationData, person: &PersonData, patch: &PersonPatch) -> Option<Self> {
         // Location of person changed, decrement counters of new location
         if patch.city.is_value() { // Should be checked by the caller (could be an assertion)
+            let always_include = data.total == 0;
             let total = Some(data.total + 1);
-            let married = Self::conditional_increment(data.married, person.spouse, patch.spouse, data.total);
+            let married = Self::value_for_change(data.married, patch.spouse, person.spouse, always_include);
+            // let married = Self::conditional_increment(data.married, person.spouse, patch.spouse, data.total);
             // Further updates of data fields here ...
             Some(Self::new(total, married))
         } else {
@@ -101,7 +105,7 @@ impl LocationPatch {
     pub fn for_delete(data: &LocationData, person: &PersonData) -> Option<Self> {
         if person.city.is_some() { // Should be checked by the caller (could be an assertion)
             let total = Self::checked_decrement(data.total);
-            let married = Self::optional_decrement(data.married, person.spouse);
+            let married = Self::value_for_delete(data.married, person.spouse);
             // Further updates of data fields here ...
             if total.is_some() || married.is_some() {
                 return Some(Self::new(total, married));
@@ -110,7 +114,27 @@ impl LocationPatch {
         None
     }
 
-    fn conditional_update<T>(value: usize, patch: Patch<T>) -> Option<usize> {
+    //
+    // Private helpers
+    //
+
+    // Calculates an aggregated value for the for_insert method depending on the
+    // person attribute control. If the control attribute is Some, the aggregate value
+    // is incremented. Otherwise, always_include controls the result: If it is true,
+    // value is returned unchanged, else None is returned.
+    fn value_for_insert<T>(value: usize, control: Option<T>, always_include: bool) -> Option<usize> {
+        match control {
+            Some(_) => Some(value + 1),
+            None => if always_include { Some(value) } else { None }
+        }
+    }
+
+    // Calculates an aggregated value for the for_update method depending on the
+    // patch attribute control. If the control attribute has a Value, the aggregate
+    // value is incremented. It it is Null, it is decremented (indicating the removal
+    // of a person field). Lastly, if the control value is Absent, then the aggregate
+    // value is omitted.
+    fn value_for_update<T>(value: usize, patch: Patch<T>) -> Option<usize> {
         match patch {
             Patch::Value(_) => Some(value + 1),
             Patch::Null => Self::checked_decrement(value),
@@ -118,28 +142,26 @@ impl LocationPatch {
         }
     }
 
-    fn conditional_increment<T>(value: usize, option: Option<T>, patch: Patch<T>, total: usize) -> Option<usize> {
-        match patch {
+    // Calculates an aggregated value for the for_change method depending on the
+    // patch attribute control. If the control attribute has a Value, the aggregate
+    // value is incremented. It it is Null, the result depends on always_include:
+    // If it is true, value is returned unchanged, else None is returned.
+    // Lastly, if the control value is Absent, then the aggregate value is incremented
+    // only if id had a value before the change operation. This is controlled by the
+    // control_insert parameter.
+    fn value_for_change<T>(value: usize, control: Patch<T>, control_insert: Option<T>, always_include: bool) -> Option<usize> {
+        match control {
             Patch::Value(_) => Some(value + 1),
-            Patch::Null => if total == 0 { Some(value) } else { None },
-            Patch::Absent => Self::optional_increment(value, option, total)
+            Patch::Null => if always_include { Some(value) } else { None },
+            Patch::Absent => Self::value_for_insert(value, control_insert, always_include)
         }
     }
 
-    // Computes the value of a patch value depending on a person attribute ``option``.
-    // If the attribute is set, the patch value is incremented. Otherwise, this method
-    // checks if ``total`` is 0. This indicates an insertion into the location table,
-    // and so the current ``value`` is transmitted. Otherwise, ``None``is returned,
-    // because the current ``value`` is already known at receiver side.
-    fn optional_increment<T>(value: usize, option: Option<T>, total: usize) -> Option<usize> {
-        match option {
-            Some(_) => Some(value + 1),
-            None => if total == 0 { Some(value) } else { None }
-        }
-    }
-
-    fn optional_decrement<T>(value: usize, option: Option<T>) -> Option<usize> {
-        match option {
+    // Calculates an aggregated value for the for_delete method depending on the
+    // person attribute control. If the control attribute is Some, the aggregate
+    // value is decremented. Otherwise, None is returned.
+    fn value_for_delete<T>(value: usize, control: Option<T>) -> Option<usize> {
+        match control {
             Some(_) => Self::checked_decrement(value),
             None => None
         }
@@ -170,14 +192,14 @@ mod tests {
     //
 
     #[test]
-    pub fn test_serde_some() {
+    fn test_serde_some() {
         let data_ref = LocationPatch::new(Some(1), Some(3));
         let json_ref = r#"{"total":1,"married":3}"#;
         serde_and_verify(&data_ref, json_ref);
     }
 
     #[test]
-    pub fn test_serde_none() {
+    fn test_serde_none() {
         let data_ref = LocationPatch::new(None, None);
         let json_ref = r#"{}"#;
         serde_and_verify(&data_ref, json_ref);
@@ -188,7 +210,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_for_insert() {
+    fn test_for_insert() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let patch = LocationPatch::for_insert(&loc, &person);
@@ -196,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_insert_no_spouse() {
+    fn test_for_insert_no_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let patch = LocationPatch::for_insert(&loc, &person);
@@ -204,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_insert_initial_no_spouse() {
+    fn test_for_insert_initial_no_spouse() {
         let loc = LocationData::new(0, 0);
         let person = PersonData::new("Hans", Some("Here"), None);
         let patch = LocationPatch::for_insert(&loc, &person);
@@ -212,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_insert_no_location() {
+    fn test_for_insert_no_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let patch = LocationPatch::for_insert(&loc, &person);
@@ -224,7 +246,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_for_update_no_location() {
+    fn test_for_update_no_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
@@ -233,7 +255,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_keep_location_keep_spouse() {
+    fn test_for_update_keep_location_keep_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
@@ -242,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_keep_location_remove_spouse() {
+    fn test_for_update_keep_location_remove_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Null);
@@ -251,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_keep_location_remove_spouse_below_zeri() {
+    fn test_for_update_keep_location_remove_spouse_below_zeri() {
         let loc = LocationData::new(1, 0);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Null);
@@ -260,7 +282,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_keep_location_set_spouse() {
+    fn test_for_update_keep_location_set_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123)));
@@ -269,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_remove_location() {
+    fn test_for_update_remove_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
@@ -278,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_set_location() {
+    fn test_for_update_set_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
@@ -287,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_update_change_location() {
+    fn test_for_update_change_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
@@ -300,7 +322,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_for_change_no_location() {
+    fn test_for_change_no_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
@@ -309,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_keep_location() {
+    fn test_for_change_keep_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
@@ -318,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_remove_location() {
+    fn test_for_change_remove_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Null, Patch::Absent);
@@ -327,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_set_location() {
+    fn test_for_change_set_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
@@ -336,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_set_location_no_spouse() {
+    fn test_for_change_set_location_no_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, None);
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
@@ -345,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_set_location_initial_no_spouse() {
+    fn test_for_change_set_location_initial_no_spouse() {
         let loc = LocationData::new(0, 0);
         let person = PersonData::new("Hans", None, None);
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Absent);
@@ -354,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_set_location_remove_spouse() {
+    fn test_for_change_set_location_remove_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Null);
@@ -363,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_set_location_initial_remove_spouse() {
+    fn test_for_change_set_location_initial_remove_spouse() {
         let loc = LocationData::new(0, 0);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("Here"), Patch::Null);
@@ -372,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_alter_location_no_spouse() {
+    fn test_for_change_alter_location_no_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
@@ -381,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_alter_location_keep_spouse() {
+    fn test_for_change_alter_location_keep_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Absent);
@@ -390,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_alter_location_set_spouse() {
+    fn test_for_change_alter_location_set_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Value(PersonId::from(123)));
@@ -399,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_alter_location_remove_spouse() {
+    fn test_for_change_alter_location_remove_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Null);
@@ -408,7 +430,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_change_alter_location_initial_remove_spouse() {
+    fn test_for_change_alter_location_initial_remove_spouse() {
         let loc = LocationData::new(0, 0);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let p_patch = PersonPatch::new(None, Patch::Value("There"), Patch::Null);
@@ -421,7 +443,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_for_delete() {
+    fn test_for_delete() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let patch = LocationPatch::for_delete(&loc, &person);
@@ -429,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_delete_no_spouse() {
+    fn test_for_delete_no_spouse() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", Some("Here"), None);
         let patch = LocationPatch::for_delete(&loc, &person);
@@ -437,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_delete_no_location() {
+    fn test_for_delete_no_location() {
         let loc = LocationData::new(1, 3);
         let person = PersonData::new("Hans", None, Some(PersonId::from(123)));
         let patch = LocationPatch::for_delete(&loc, &person);
@@ -445,7 +467,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_for_delete_below_zero() {
+    fn test_for_delete_below_zero() {
         let loc = LocationData::new(0, 0);
         let person = PersonData::new("Hans", Some("Here"), Some(PersonId::from(123)));
         let patch = LocationPatch::for_delete(&loc, &person);

@@ -27,7 +27,7 @@ mod tests {
 
     #[test]
     pub fn test_serde() {
-        let patch = LocationPatch::new(Some(1), Some(3));
+        let patch = LocationPatch{ total: Some(1), married: Some(3) };
         let event = LocationEvent::new("Here", Some(patch));
         let json_ref = r#"{"Here":{"total":1,"married":3}}"#;
         serde_and_verify(&event, json_ref);
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     pub fn test_serde_null_content() {
-        let patch = LocationPatch::new(None, None);
+        let patch = LocationPatch{ total: None, married: None };
         let event = LocationEvent::new("Here", Some(patch));
         let json_ref = r#"{"Here":{}}"#;
         serde_and_verify(&event, json_ref);
