@@ -16,7 +16,7 @@
 [x] Migrate location stuff to location statistics
 [ ] Rename project to [rust-]stream-table-duality
 [x] Create "AggregatorFacade" that wraps the aggregators
-[ ] Rename server to processor? (if so, also change README.md incl figures)
+[x] Rename server to processor? (if so, also change README.md incl figures)
 [x] Move aggregator and scheduler to subdir again (but which?)
 [x] Move Fetcher and Worker implementations to separate files (and then make pgk "util" private again)
 [x] Document ScheduledStream!

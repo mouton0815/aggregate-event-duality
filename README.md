@@ -1,14 +1,17 @@
 # Aggregate-Event Duality
 
-This project demonstrates how a service can provide both aggregates and their corresponding change events.
+This project demonstrates how a service can provide both aggregates and their corresponding change events
+in a consistent way.
 
-An _aggregate_ is a JSON document that contains hierarchical data, covering a certain domain.
-An example aggregate may contain the data of all persons in a company, university, or similar.
-Another aggregate may provide a grouping of all bespoken persons by their locations.
+An _aggregate_ is an entity that is stored and retrieved as a whole.
+An example aggregate may contain all available information about a person.
+Another aggregate may provide statistical data about all persons in a city, such as total number of persons
+and the number of married persons.
+
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 
-| #   | Input operation                                   | Resulting person aggregate                                    |
+| #   | Input operation                                   | Resulting person aggregates                                   |
 |-----|---------------------------------------------------|---------------------------------------------------------------|
 | 1   | ``POST /persons {"name":"Hans","city":"Berlin"}`` | ``{"1":{"name":"Hans","city":"Berlin"}}``                     |
 | 2   | ``POST /persons {"name":"Inge"}``                 | ``{"1":{"name":"Hans","city":"Berlin"},"2":{"name":"Inge"}}`` |
@@ -29,7 +32,7 @@ The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
-It can bootstrap from the aggregate and keep itself up-to-date by applying subsequent changes.
+It can bootstrap from the aggregates and keep itself up-to-date by applying subsequent changes.
 Older events can be deleted, avoiding storage bottlenecks and potential GDPR violations.
 
 The event stream can be transported by any messaging system such as [ActiveMQ](https://activemq.apache.org).
@@ -41,7 +44,7 @@ although through different server endpoints.
  
 The separation into two steps, bootstrapping and event consumption, requires synchronisation:
 The consumer must receive change events in order. Moreover, it must not miss change events for the previously
-loaded aggregate. The challenge here is on server side. The server must store the aggregate and publish
+loaded aggregates. The challenge here is on server side. The server must store the aggregate and publish
 the corresponding change event in an atomic operation.
 
 Atomicity can be guaranteed with the [Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html)
@@ -53,7 +56,7 @@ This holds for the JSON Merge Patch protocol.
 
 ![Transactional Outbox pattern](outbox-pattern.png)
 
-To match aggregate state and event, another table stores the latest _revision_ of the aggregate.
+To match aggregate state and event, another table stores the latest _revision_ of the aggregates.
 Every event in the outbox event table is annotated with the aggregate revision.
 The aggregate endpoint delivers the revision in header ``X-Revision``.
 ```shell
@@ -65,21 +68,24 @@ HTTP/1.1 200 OK
 content-type: application/json
 x-revision: 7
 ```
-After reading the aggregate, the consumer can use the revision value to subscribe to all subsequent change events:
+After reading the aggregates, the consumer can use the revision value to subscribe to all subsequent change events:
 ```shell
 curl -N -H "X-Revision: 8" http://localhost:3000/person-events
 ```
 Note that the consumer may also use 7 or any smaller value instead, because the events are idempotent.
 The only limitation is the event retention time on the server, which perodically deletes older events.
 
-(TODO: Aggregate delivery in pages?)
-
 ## Installation
-You need [Rust](https://www.rust-lang.org/tools/install) for the server (TODO: and [Node.js](https://nodejs.org/en/) to run the example consumer).
+You need [Rust](https://www.rust-lang.org/tools/install) for the server.
 ```shell
 git clone https://github.com/mouton0815/aggregate-event-duality.git
 cd aggregate-event-duality
 cargo build
+```
+To use the example [consumer](node/consumer.js), you also need [Node.js](https://nodejs.org/en/):
+```shell
+cd node
+npm install
 ```
 
 ## Running
@@ -92,10 +98,13 @@ so the aggregates are lost on restart of the server. This can be changed by repl
 argument of the ``Aggregator`` constructor in [server.rs](src/bin/server.rs) by a path to a database file,
 for example ``"database.db"``.
 
-(TODO: Start the node.js example consumer)
+When the server is running, you can start the consumer in another shell:
+```shell
+node node/consumer.js
+```
 
 ## Playing
-To build an aggregate and product the corresponding change events,
+To build aggregates and product the corresponding change events,
 you need to create/update/delete persons via the REST endpoint of the server.
 Example requests:
 ```shell
