@@ -26,7 +26,7 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_serde() {
+    fn test_serde() {
         let patch = LocationPatch{ total: Some(1), married: Some(3) };
         let event = LocationEvent::new("Here", Some(patch));
         let json_ref = r#"{"Here":{"total":1,"married":3}}"#;
@@ -34,16 +34,17 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serde_null_object() {
+    fn test_serde_null_object() {
         let event = LocationEvent::new("Here", None);
         let json_ref = r#"{"Here":null}"#;
         serde_and_verify(&event, json_ref);
     }
 
     #[test]
-    pub fn test_serde_null_content() {
+    fn test_serde_null_content() {
         let patch = LocationPatch{ total: None, married: None };
         let event = LocationEvent::new("Here", Some(patch));
         let json_ref = r#"{"Here":{}}"#;
         serde_and_verify(&event, json_ref);
-    }}
+    }
+}

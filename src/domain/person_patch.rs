@@ -40,6 +40,8 @@ impl PersonPatch {
         }
     }
 
+    /// Computes the minimal patch between the ``old`` and the ``new`` person data.
+    /// If no field changed, this method returns ``None``.
     pub fn of(old: &PersonData, new: &PersonData) -> Option<Self> {
         let name = if old.name == new.name { None } else { Some(new.name.clone()) };
         let city = Patch::of_options(&old.city, &new.city);
@@ -61,28 +63,28 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_serde1() {
+    fn test_serde1() {
         let person = PersonPatch::new(Some("Hans"), Patch::Absent, Patch::Null);
         let json_ref = r#"{"name":"Hans","spouse":null}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
-    pub fn test_serde2() {
+    fn test_serde2() {
         let person = PersonPatch::new(None, Patch::Value("Here"), Patch::Value(PersonId::from(123)));
         let json_ref = r#"{"city":"Here","spouse":123}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
-    pub fn test_serde3() {
+    fn test_serde3() {
         let person = PersonPatch::new(None, Patch::Null, Patch::Absent);
         let json_ref = r#"{"city":null}"#;
         serde_and_verify(&person, json_ref);
     }
 
     #[test]
-    pub fn test_of1() {
+    fn test_of1() {
         let old = PersonData::new("Hans", None, None);
         let new = PersonData::new("Inge", Some("here"), None);
         let cmp = PersonPatch::new(Some("Inge"), Patch::Value("here"), Patch::Absent);
@@ -90,7 +92,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_of2() {
+    fn test_of2() {
         let old = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         let new = PersonData::new("Hans", None, None);
         let cmp = PersonPatch::new(None, Patch::Null, Patch::Null);
@@ -98,14 +100,14 @@ mod tests {
     }
 
     #[test]
-    pub fn test_of3() {
+    fn test_of3() {
         let old = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         let new = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
         assert_eq!(PersonPatch::of(&old, &new), None);
     }
 
     #[test]
-    pub fn test_of4() {
+    fn test_of4() {
         let old = PersonData::new("", None, None);
         let new = PersonData::new("", None, None);
         assert_eq!(PersonPatch::of(&old, &new), None);

@@ -34,21 +34,21 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_serde() {
+    fn test_serde() {
         let data_ref = LocationData::new(1, 3);
         let json_ref = r#"{"total":1,"married":3}"#;
         serde_and_verify(&data_ref, json_ref);
     }
 
     #[test]
-    pub fn test_apply_patch() {
+    fn test_apply_patch() {
         let mut loc = LocationData::new(1, 3);
         loc.apply_patch(&LocationPatch{ total: Some(2), married: Some(4) });
         assert_eq!(loc, LocationData::new(2, 4));
     }
 
     #[test]
-    pub fn test_apply_patch_no_change() {
+    fn test_apply_patch_no_change() {
         let mut loc = LocationData::new(1, 3);
         loc.apply_patch(&LocationPatch{ total: None, married: None });
         assert_eq!(loc, LocationData::new(1, 3));

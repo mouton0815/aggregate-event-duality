@@ -36,7 +36,7 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_put() {
+    fn testest_put() {
         let mut map = LocationMap::new();
         map.put("foo", LocationData{ total: 1, married: 3});
         map.put("bar", LocationData{ total: 2, married: 0});
@@ -46,14 +46,14 @@ mod tests {
     }
 
     #[test]
-    pub fn test_empty() {
+    fn testest_empty() {
         let map = LocationMap::new();
         let json_ref = r#"{}"#;
         serde_and_verify(&map, json_ref);
     }
 
     #[test]
-    pub fn test_get_and_len() {
+    fn testest_get_and_len() {
         let loc = LocationData{ total: 1, married: 3};
         let mut map = LocationMap::new();
         map.put("foo", loc.clone());

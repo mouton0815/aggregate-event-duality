@@ -155,7 +155,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_insert() {
+    fn test_insert() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update() {
+    fn test_update() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
@@ -181,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_missing() {
+    fn test_update_missing() {
         let mut aggregator = create_aggregator();
 
         let person_update = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Null);
@@ -191,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_delete() {
+    fn test_delete() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
@@ -202,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_delete_missing() {
+    fn test_delete_missing() {
         let mut aggregator = create_aggregator();
 
         let person_res = aggregator.delete(PersonId::from(1));
@@ -215,7 +215,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_get_persons_empty() {
+    fn test_get_persons_empty() {
         let mut aggregator = create_aggregator();
 
         let persons_res = aggregator.get_persons();
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_persons() {
+    fn test_get_persons() {
         let mut aggregator = create_aggregator();
 
         let person = PersonData::new("Hans", None, None);
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_locations() {
+    fn test_get_locations() {
         let mut aggregator = create_aggregator();
 
         let person1 = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_events() {
+    fn test_get_events() {
         let mut aggregator = create_aggregator();
 
         let person1 = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));

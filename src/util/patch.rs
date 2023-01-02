@@ -168,89 +168,89 @@ mod tests {
     }
 
     #[test]
-    pub fn test_of_option_none_as_absent() {
+    fn test_of_option_none_as_absent() {
         let t : Patch<usize> = Patch::of_option(&None, false);
         assert_eq!(t, Patch::Absent);
     }
 
     #[test]
-    pub fn test_of_option_none_as_null() {
+    fn test_of_option_none_as_null() {
         let t : Patch<usize> = Patch::of_option(&None, true);
         assert_eq!(t, Patch::Null);
     }
 
     #[test]
-    pub fn test_of_option_value() {
+    fn test_of_option_value() {
         let t = Patch::of_option(&Some("foo"), true);
         assert_eq!(t, Patch::Value("foo"));
     }
 
     #[test]
-    pub fn test_of_options_none_none() {
+    fn test_of_options_none_none() {
         let t : Patch<usize> = Patch::of_options(&None, &None);
         assert_eq!(t, Patch::Absent);
     }
 
     #[test]
-    pub fn test_of_options_none_some() {
+    fn test_of_options_none_some() {
         let t = Patch::of_options(&None, &Some("foo"));
         assert_eq!(t, Patch::Value("foo"));
     }
 
     #[test]
-    pub fn test_of_options_some_none() {
+    fn test_of_options_some_none() {
         let t = Patch::of_options(&Some("foo"), &None);
         assert_eq!(t, Patch::Null);
     }
 
     #[test]
-    pub fn test_of_options_equal() {
+    fn test_of_options_equal() {
         let t = Patch::of_options(&Some("foo"), &Some("foo"));
         assert_eq!(t, Patch::Absent);
     }
 
     #[test]
-    pub fn test_of_options_differ() {
+    fn test_of_options_differ() {
         let t = Patch::of_options(&Some("foo"), &Some("bar"));
         assert_eq!(t, Patch::Value("bar"));
     }
 
     #[test]
-    pub fn test_unwrap() {
+    fn test_unwrap() {
         let t = Patch::Value(String::from("123"));
         let r : String = t.unwrap();
         assert_eq!(r, "123");
     }
 
     #[test]
-    pub fn test_as_ref() {
+    fn test_as_ref() {
         let t = Patch::Value(String::from("123"));
         let r : Patch<&String> = t.as_ref();
         assert_eq!(r.unwrap(), "123");
     }
 
     #[test]
-    pub fn test_map() {
+    fn test_map() {
         let t : Patch<&str> = Patch::Value("123");
         let r : Patch<String> = t.map(|s| String::from(s));
         assert_eq!(r.unwrap(), "123");
     }
 
     #[test]
-    pub fn test_from_some() {
+    fn test_from_some() {
         let t : Patch<u32> = Patch::from(Some(123));
         assert!(t.is_value());
         assert_eq!(t.unwrap(), 123);
     }
 
     #[test]
-    pub fn test_from_none() {
+    fn test_from_none() {
         let t : Patch<u32> = Patch::from(None);
         assert!(t.is_null());
     }
 
     #[test]
-    pub fn test_serde_value() {
+    fn test_serde_value() {
         let t = Patch::Value(String::from("123"));
         assert!(t.is_value());
         assert!(!t.is_null());
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serde_null() {
+    fn test_serde_null() {
         let t: Patch<u32> = Patch::Null;
         assert!(!t.is_value());
         assert!(t.is_null());
@@ -274,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serde_absent() {
+    fn test_serde_absent() {
         let t: Patch<u32> = Patch::Absent;
         assert!(!t.is_value());
         assert!(!t.is_null());
@@ -286,7 +286,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serde_record_value() {
+    fn test_serde_record_value() {
         let record_ref = Record{
             a: Patch::Value(String::from("Foo")),
             b: Patch::Value(123),
@@ -297,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serialize_record_null() {
+    fn test_serialize_record_null() {
         let record_ref = Record{
             a: Patch::Null,
             b: Patch::Null,
@@ -308,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serialize_record_absent() {
+    fn test_serialize_record_absent() {
         let record_ref = Record{
             a: Patch::Absent,
             b: Patch::Absent,

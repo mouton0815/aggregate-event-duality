@@ -48,7 +48,7 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_person_event_values() {
+    fn test_person_event_values() {
         let person = PersonData::new("Hans", Some("Berlin"), Some(PersonId::from(2)));
         let person_event = PersonEvent::for_insert(PersonId::from(1), &person);
 
@@ -57,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_person_event_absent() {
+    fn test_person_event_absent() {
         let patch = PersonPatch::new(None, Patch::Absent, Patch::Absent);
         let person_event = PersonEvent::for_update(PersonId::from(1), &patch);
 
@@ -66,7 +66,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_person_event_null_values() {
+    fn test_person_event_null_values() {
         let patch = PersonPatch::new(None, Patch::Null, Patch::Null);
         let person_event = PersonEvent::for_update(PersonId::from(1), &patch);
 
@@ -75,7 +75,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_person_event_null_object() {
+    fn test_person_event_null_object() {
         let person_event = PersonEvent::for_delete(PersonId::from(1));
         let json_ref = r#"{"1":null}"#;
         serde_and_verify(&person_event, json_ref);

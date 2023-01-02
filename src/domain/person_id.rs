@@ -68,52 +68,52 @@ mod tests {
     }
 
     #[test]
-    pub fn test_serde_key() {
+    fn test_serde_key() {
         let data = PersonId::from(123);
         serde_and_verify(&data, r#"123"#);
     }
 
     #[test]
-    pub fn test_serde_record() {
+    fn test_serde_record() {
         let data = Record{ key: PersonId::from(123) };
         serde_and_verify(&data, r#"{"key":123}"#);
     }
 
     #[test]
-    pub fn test_serde_hash_map() {
+    fn test_serde_hash_map() {
         let mut data = HashMap::<PersonId, u32>::new();
         data.insert(PersonId::from(123), 456);
         serde_and_verify(&data, r#"{"123":456}"#); // Note: Keys in JSON are always strings
     }
 
     #[test]
-    pub fn test_serde_tree_map() {
+    fn test_serde_tree_map() {
         let mut data = BTreeMap::<PersonId, String>::new();
         data.insert(PersonId::from(123), String::from("dummy"));
         serde_and_verify(&data, r#"{"123":"dummy"}"#);
     }
 
     #[test]
-    pub fn test_from_str_ok() {
+    fn test_from_str_ok() {
         let result = PersonId::from_str("123");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), PersonId::from(123));
     }
 
     #[test]
-    pub fn test_from_str_err() {
+    fn test_from_str_err() {
         let result = PersonId::from_str("abc");
         assert!(result.is_err());
     }
 
     #[test]
-    pub fn test_display() {
+    fn test_display() {
         let result = PersonId::from(123).to_string();
         assert_eq!(result, "123");
     }
 
     #[test]
-    pub fn test_to_sql() {
+    fn test_to_sql() {
         let id = PersonId::from(123);
         let sql = id.to_sql();
         assert!(sql.is_ok());
@@ -124,7 +124,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_from_sql() {
+    fn test_from_sql() {
         let result = PersonId::column_result(ValueRef::Integer(123));
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), PersonId::from(123));

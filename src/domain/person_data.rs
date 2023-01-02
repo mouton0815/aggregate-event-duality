@@ -39,14 +39,14 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_person1() {
+    fn test_person1() {
         let person_ref = PersonData::new("Hans", None, Some(PersonId::from(2)));
         let json_ref = r#"{"name":"Hans","spouse":2}"#;
         serde_and_verify(&person_ref, json_ref);
     }
 
     #[test]
-    pub fn test_person2() {
+    fn test_person2() {
         let person_ref = PersonData::new("Inge", Some("City"), None);
         let json_ref = r#"{"name":"Inge","city":"City"}"#;
         serde_and_verify(&person_ref, json_ref);

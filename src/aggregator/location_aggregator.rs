@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_insert_with_spouse() {
+    fn test_insert_with_spouse() {
         test_insert(
             &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             Some(LocationData::new(1, 1)),
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_insert_no_spouse() {
+    fn test_insert_no_spouse() {
         test_insert(
             &[PersonData::new("Hans", Some("here"), None)],
             Some(LocationData::new(1, 0)),
@@ -214,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_insert_twice_no_spouse() {
+    fn test_insert_twice_no_spouse() {
         test_insert(
             &[
                 PersonData::new("Hans", Some("here"), None),
@@ -243,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_keep_location_keep_spouse() {
+    fn test_update_keep_location_keep_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Absent, Patch::Absent),
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_keep_location_set_spouse() {
+    fn test_update_keep_location_set_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("here"), None)],
             PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123))),
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_keep_location_delete_spouse() {
+    fn test_update_keep_location_delete_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Absent, Patch::Null),
@@ -274,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_set_location_keep_spouse() {
+    fn test_update_set_location_keep_spouse() {
         test_update(
             &[PersonData::new("Hans", None, Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_set_location_set_spouse() {
+    fn test_update_set_location_set_spouse() {
         test_update(
             &[PersonData::new("Hans", None, None)],
             PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_set_location_delete_spouse() {
+    fn test_update_set_location_delete_spouse() {
         test_update(
             &[PersonData::new("Hans", None, Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
@@ -301,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_remove_location_keep_spouse() {
+    fn test_update_remove_location_keep_spouse() {
         test_update(
             &[
                 PersonData::new("Hans", Some("here"), None),
@@ -315,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_remove_location_remove_spouse() {
+    fn test_update_remove_location_remove_spouse() {
         test_update(
             &[
                 PersonData::new("Hans", Some("here"), None),
@@ -329,7 +329,7 @@ mod tests {
      }
 
     #[test]
-    pub fn test_update_remove_last_location() {
+    fn test_update_remove_last_location() {
         test_update(
             &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Null, Patch::Absent),
@@ -340,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_change_location_keep_spouse() {
+    fn test_update_change_location_keep_spouse() {
         test_update(
             &[
                 PersonData::new("Hans", Some("there"), None),
@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_change_last_location_keep_spouse() {
+    fn test_update_change_last_location_keep_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
@@ -367,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_change_location_set_spouse() {
+    fn test_update_change_location_set_spouse() {
         test_update(
             &[
                 PersonData::new("Hans", Some("there"), None),
@@ -382,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_change_last_location_set_spouse() {
+    fn test_update_change_last_location_set_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("there"), None)],
             PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
@@ -394,7 +394,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_change_location_delete_spouse() {
+    fn test_update_change_location_delete_spouse() {
         test_update(
             &[
                 PersonData::new("Hans", Some("there"), None),
@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_update_change_last_location_delete_spouse() {
+    fn test_update_change_last_location_delete_spouse() {
         test_update(
             &[PersonData::new("Hans", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
@@ -438,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_delete_not_last() {
+    fn test_delete_not_last() {
         test_delete(
             &[
                 PersonData::new("Hans", Some("here"), None),
@@ -452,7 +452,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_delete_last() {
+    fn test_delete_last() {
         test_delete(
             &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
             None,
@@ -466,7 +466,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_get_all() {
+    fn test_get_all() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -486,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_get_all_empty() {
+    fn test_get_all_empty() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -504,7 +504,7 @@ mod tests {
     //
 
     #[test]
-    pub fn test_get_events() {
+    fn test_get_events() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -525,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_delete_events() {
+    fn test_delete_events() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 

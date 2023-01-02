@@ -107,7 +107,7 @@ pub mod tests {
     //
 
     #[test]
-    pub fn test_insert() {
+    fn test_insert() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -121,7 +121,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_update() {
+    fn test_update() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -140,7 +140,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_delete() {
+    fn test_delete() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -162,7 +162,7 @@ pub mod tests {
     //
 
     #[test]
-    pub fn test_get_all() {
+    fn test_get_all() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -182,7 +182,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_get_all_empty() {
+    fn test_get_all_empty() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -200,7 +200,7 @@ pub mod tests {
     //
 
     #[test]
-    pub fn test_get_events() {
+    fn test_get_events() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
@@ -220,7 +220,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_delete_events() {
+    fn test_delete_events() {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 

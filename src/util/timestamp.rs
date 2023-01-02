@@ -48,7 +48,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_timestamp() {
+    fn test_timestamp() {
         let mut ticker = IncrementalTimestamp::new();
         assert_eq!(ticker.as_secs(), 1);
         assert_eq!(ticker.as_secs(), 2);

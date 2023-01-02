@@ -37,7 +37,7 @@ mod tests {
     use crate::util::serde_and_verify::tests::serde_and_verify;
 
     #[test]
-    pub fn test_put() {
+    fn test_put() {
         let mut map = PersonMap::new();
         map.put(PersonId::from(1), PersonData::new("Hans", Some("Berlin"), Some(PersonId::from(2))));
         map.put(PersonId::from(2), PersonData::new("Inge", None, Some(PersonId::from(1))));
@@ -47,14 +47,14 @@ mod tests {
     }
 
     #[test]
-    pub fn test_empty() {
+    fn testest_empty() {
         let map = PersonMap::new();
         let json_ref = r#"{}"#;
         serde_and_verify(&map, json_ref);
     }
 
     #[test]
-    pub fn test_get_and_len() {
+    fn testest_get_and_len() {
         let person = PersonData::new("Inge", Some("Nowhere"), None);
         let mut map = PersonMap::new();
         map.put(PersonId::from(5), person.clone());
