@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A node.js client that first gets person records and then reads and applies events",
   "type": "module",
-  "main": "client.js",
+  "main": "consumer.js",
   "author": "torsten.schlieder@gmx.net",
   "license": "MIT",
   "dependencies": {
