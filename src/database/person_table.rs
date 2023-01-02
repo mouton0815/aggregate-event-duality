@@ -7,7 +7,7 @@ use crate::domain::person_patch::PersonPatch;
 
 const CREATE_PERSON_TABLE : &'static str =
     "CREATE TABLE IF NOT EXISTS person (
-        personId INTEGER NOT NULL PRIMARY KEY,
+        personId INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         city TEXT,
         spouse INTEGER
