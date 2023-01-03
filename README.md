@@ -8,26 +8,28 @@ An _aggregate_ is an entity that is stored and retrieved as a whole. The project
 * A "location" aggregates provides statistical data about all persons in a city.
 
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
-Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
+Aggregates are delivered to consumers as JSON objects via HTTP ``GET`` requests.
 
-| #   | Input operation                                   | Resulting person aggregates                                 |
-|-----|---------------------------------------------------|-------------------------------------------------------------|
-| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}``  | ``{"1":{"name":"Ann","city":"Berlin"}}``                    |
-| 2   | ``POST /persons {"name":"Bob"}``                  | ``{"1":{"name":"Ann","city":"Berlin"},"2":{"name":"Bob"}}`` |
-| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"name":"Ann"},"2":{"name":"Bob"}}``                 |
-| 4   | ``DELETE /persons/1``                             | ``{"2":{"name":"Bob"}}``                                    |
+| #   | Input operation                                  | Resulting person aggregates                                                           | Resulting location aggregates |
+|-----|--------------------------------------------------|---------------------------------------------------------------------------------------|-------------------------------|
+| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}`` | ``{"1":{"name":"Ann","city":"Berlin"}}``                                              | ``{"Berlin":{"total":1}}``    |
+| 2   | ``POST /persons {"name":"Bob"}``                 | ``{"1":{"name":"Ann","city":"Berlin"}}``<br/>``{"2":{"name":"Bob"}}``                 | ``{"Berlin":{"total":1}}``    |
+| 3   | ``PATCH /persons/2 {"city":"Berlin"}``           | ``{"1":{"name":"Ann","city":"Berlin"}}``<br/>``{"2":{"name":"Bob","city":"Berlin"}}`` | ``{"Berlin":{"total":2}}``    |
+| 4   | ``PATCH /persons/1 {"city":null}``               | ``{"1":{"name":"Ann"}}``<br/>``{"2":{"name":"Bob","city":"Berlin"}}``                 | ``{"Berlin":{"total":1}}``    |
+| 5   | ``DELETE /persons/2``                            | ``{"1":{"name":"Ann"}}``                                                              | (none)                        |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.
 The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386)
 (not to be confused with [JSON Patch](https://jsonpatch.com)).
 
-| #   | Input operation                                   | Resulting JSON Merge Patch event         |
-|-----|---------------------------------------------------|------------------------------------------|
-| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}``  | ``{"1":{"name":"Ann","city":"Berlin"}}`` |
-| 2   | ``POST /persons {"name":"Bob"}``                  | ``{"2":{"name":"Bob"}}``                 |
-| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"city":null}}``                  |
-| 4   | ``DELETE /persons/1``                             | ``{"1":null}``                           |
+| #   | Input operation                                  | Resulting person event                   | Resulting location event   |
+|-----|--------------------------------------------------|------------------------------------------|----------------------------|
+| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}`` | ``{"1":{"name":"Ann","city":"Berlin"}}`` | ``{"Berlin":{"total":1}}`` |
+| 2   | ``POST /persons {"name":"Bob"}``                 | ``{"2":{"name":"Bob"}}``                 | (none)                     |
+| 3   | ``PATCH /persons/2 {"city":"Berlin"}``           | ``{"2":{"city":"Berlin"}}``              | ``{"Berlin":{"total":2}}`` |
+| 4   | ``PATCH /persons/1 {"city":null}``               | ``{"1":{"city":null}}``                  | ``{"Berlin":{"total":1}}`` |
+| 5   | ``DELETE /persons/1``                            | ``{"1":null}``                           | ``{"Berlin":null}``        |
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
