@@ -28,23 +28,23 @@ mod tests {
     #[test]
     fn test_serde() {
         let patch = LocationPatch{ total: Some(1), married: Some(3) };
-        let event = LocationEvent::new("Here", Some(patch));
-        let json_ref = r#"{"Here":{"total":1,"married":3}}"#;
+        let event = LocationEvent::new("here", Some(patch));
+        let json_ref = r#"{"here":{"total":1,"married":3}}"#;
         serde_and_verify(&event, json_ref);
     }
 
     #[test]
     fn test_serde_null_object() {
-        let event = LocationEvent::new("Here", None);
-        let json_ref = r#"{"Here":null}"#;
+        let event = LocationEvent::new("here", None);
+        let json_ref = r#"{"here":null}"#;
         serde_and_verify(&event, json_ref);
     }
 
     #[test]
     fn test_serde_null_content() {
         let patch = LocationPatch{ total: None, married: None };
-        let event = LocationEvent::new("Here", Some(patch));
-        let json_ref = r#"{"Here":{}}"#;
+        let event = LocationEvent::new("here", Some(patch));
+        let json_ref = r#"{"here":{}}"#;
         serde_and_verify(&event, json_ref);
     }
 }

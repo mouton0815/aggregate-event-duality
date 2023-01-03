@@ -39,10 +39,10 @@ mod tests {
     #[test]
     fn test_put() {
         let mut map = PersonMap::new();
-        map.put(PersonId::from(1), PersonData::new("Hans", Some("Berlin"), Some(PersonId::from(2))));
-        map.put(PersonId::from(2), PersonData::new("Inge", None, Some(PersonId::from(1))));
+        map.put(PersonId::from(1), PersonData::new("Ann", Some("Berlin"), Some(PersonId::from(2))));
+        map.put(PersonId::from(2), PersonData::new("Bob", None, Some(PersonId::from(1))));
 
-        let json_ref = r#"{"1":{"name":"Hans","city":"Berlin","spouse":2},"2":{"name":"Inge","spouse":1}}"#;
+        let json_ref = r#"{"1":{"name":"Ann","city":"Berlin","spouse":2},"2":{"name":"Bob","spouse":1}}"#;
         serde_and_verify(&map, json_ref);
     }
 
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn testest_get_and_len() {
-        let person = PersonData::new("Inge", Some("Nowhere"), None);
+        let person = PersonData::new("Bob", Some("nowhere"), None);
         let mut map = PersonMap::new();
         map.put(PersonId::from(5), person.clone());
         assert_eq!(map.len(), 1);

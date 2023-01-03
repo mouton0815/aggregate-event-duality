@@ -49,10 +49,10 @@ mod tests {
 
     #[test]
     fn test_person_event_values() {
-        let person = PersonData::new("Hans", Some("Berlin"), Some(PersonId::from(2)));
+        let person = PersonData::new("Ann", Some("Berlin"), Some(PersonId::from(2)));
         let person_event = PersonEvent::for_insert(PersonId::from(1), &person);
 
-        let json_ref = r#"{"1":{"name":"Hans","city":"Berlin","spouse":2}}"#;
+        let json_ref = r#"{"1":{"name":"Ann","city":"Berlin","spouse":2}}"#;
         serde_and_verify(&person_event, json_ref);
     }
 

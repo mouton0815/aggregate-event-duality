@@ -158,7 +158,7 @@ mod tests {
     fn test_insert() {
         let mut aggregator = create_aggregator();
 
-        let person = PersonData::new("Hans", None, None);
+        let person = PersonData::new("Ann", None, None);
         let person_res = aggregator.insert(&person);
         assert!(person_res.is_ok());
         let (person_id, person_data) = person_res.unwrap();
@@ -170,13 +170,13 @@ mod tests {
     fn test_update() {
         let mut aggregator = create_aggregator();
 
-        let person = PersonData::new("Hans", None, None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Here"), Patch::Value(PersonId::from(123)));
+        let person = PersonData::new("Ann", None, None);
+        let patch = PersonPatch::new(Some("Bob"), Patch::Value("here"), Patch::Value(PersonId::from(123)));
         assert!(aggregator.insert(&person).is_ok());
         let person_res = aggregator.update(PersonId::from(1), &patch);
         assert!(person_res.is_ok());
 
-        let person_ref = PersonData::new("Inge", Some("Here"), Some(PersonId::from(123)));
+        let person_ref = PersonData::new("Bob", Some("here"), Some(PersonId::from(123)));
         assert_eq!(person_res.unwrap(), Some(person_ref));
     }
 
@@ -184,7 +184,7 @@ mod tests {
     fn test_update_missing() {
         let mut aggregator = create_aggregator();
 
-        let person_update = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Null);
+        let person_update = PersonPatch::new(Some("Bob"), Patch::Value("nowhere"), Patch::Null);
         let person_res = aggregator.update(PersonId::from(1), &person_update);
         assert!(person_res.is_ok());
         assert_eq!(person_res.unwrap(), None);
@@ -194,7 +194,7 @@ mod tests {
     fn test_delete() {
         let mut aggregator = create_aggregator();
 
-        let person = PersonData::new("Hans", None, None);
+        let person = PersonData::new("Ann", None, None);
         assert!(aggregator.insert(&person).is_ok());
         let person_res = aggregator.delete(PersonId::from(1));
         assert!(person_res.is_ok());
@@ -229,13 +229,13 @@ mod tests {
     fn test_get_persons() {
         let mut aggregator = create_aggregator();
 
-        let person = PersonData::new("Hans", None, None);
+        let person = PersonData::new("Ann", None, None);
         assert!(aggregator.insert(&person).is_ok());
         let persons_res = aggregator.get_persons();
         assert!(persons_res.is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(PersonId::from(1), PersonData::new("Hans", None, None));
+        person_map.put(PersonId::from(1), PersonData::new("Ann", None, None));
         let person_ref = (1, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
     }
@@ -244,9 +244,9 @@ mod tests {
     fn test_get_locations() {
         let mut aggregator = create_aggregator();
 
-        let person1 = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
-        let person2 = PersonData::new("Inge", Some("there"), None);
-        let person3 = PersonData::new("Fred", Some("here"), None);
+        let person1 = PersonData::new("Ann", Some("here"), Some(PersonId::from(123)));
+        let person2 = PersonData::new("Bob", Some("there"), None);
+        let person3 = PersonData::new("Cam", Some("here"), None);
         assert!(aggregator.insert(&person1).is_ok());
         assert!(aggregator.insert(&person2).is_ok());
         assert!(aggregator.insert(&person3).is_ok());
@@ -265,18 +265,18 @@ mod tests {
     fn test_get_events() {
         let mut aggregator = create_aggregator();
 
-        let person1 = PersonData::new("Hans", Some("here"), Some(PersonId::from(123)));
-        let person2 = PersonData::new("Inge", Some("there"), None);
-        let person3 = PersonData::new("Fred", Some("here"), None);
+        let person1 = PersonData::new("Ann", Some("here"), Some(PersonId::from(123)));
+        let person2 = PersonData::new("Bob", Some("there"), None);
+        let person3 = PersonData::new("Cam", Some("here"), None);
         assert!(aggregator.insert(&person1).is_ok());
         assert!(aggregator.insert(&person2).is_ok());
         assert!(aggregator.insert(&person3).is_ok());
 
         let events = aggregator.get_events(EventType::PERSON, 0);
         compare_events(events, &[
-            r#"{"1":{"name":"Hans","city":"here","spouse":123}}"#,
-            r#"{"2":{"name":"Inge","city":"there"}}"#,
-            r#"{"3":{"name":"Fred","city":"here"}}"#
+            r#"{"1":{"name":"Ann","city":"here","spouse":123}}"#,
+            r#"{"2":{"name":"Bob","city":"there"}}"#,
+            r#"{"3":{"name":"Cam","city":"here"}}"#
         ]);
         let events = aggregator.get_events(EventType::LOCATION, 0);
         compare_events(events, &[

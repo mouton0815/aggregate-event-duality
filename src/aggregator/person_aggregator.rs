@@ -111,11 +111,11 @@ pub mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
-        let person = PersonData::new("Hans", Some("Here"), None);
+        let person = PersonData::new("Ann", Some("here"), None);
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
 
-        let events_ref = [r#"{"1":{"name":"Hans","city":"Here"}}"#];
+        let events_ref = [r#"{"1":{"name":"Ann","city":"here"}}"#];
         check_events(&tx, &events_ref);
         assert!(tx.commit().is_ok());
     }
@@ -125,15 +125,15 @@ pub mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
-        let person = PersonData::new("Hans", Some("Here"), None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Null, Patch::Value(PersonId::from(123)));
+        let person = PersonData::new("Ann", Some("here"), None);
+        let patch = PersonPatch::new(Some("Bob"), Patch::Null, Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
         assert!(aggregator.update(&tx, PersonId::from(1), &person, &patch).is_ok());
 
         let events_ref = [
-            r#"{"1":{"name":"Hans","city":"Here"}}"#,
-            r#"{"1":{"name":"Inge","city":null,"spouse":123}}"#
+            r#"{"1":{"name":"Ann","city":"here"}}"#,
+            r#"{"1":{"name":"Bob","city":null,"spouse":123}}"#
         ];
         check_events(&tx, &events_ref);
         assert!(tx.commit().is_ok());
@@ -144,13 +144,13 @@ pub mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
-        let person = PersonData::new("Hans", None, None);
+        let person = PersonData::new("Ann", None, None);
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
         assert!(aggregator.delete(&tx, PersonId::from(1), &person).is_ok());
 
         let events_ref = [
-            r#"{"1":{"name":"Hans"}}"#,
+            r#"{"1":{"name":"Ann"}}"#,
             r#"{"1":null}"#
         ];
         check_events(&tx, &events_ref);
@@ -166,7 +166,7 @@ pub mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
-        let person = PersonData::new("Hans", None, None);
+        let person = PersonData::new("Ann", None, None);
         assert!(PersonTable::insert(&tx, &person).is_ok());
         assert!(RevisionTable::upsert(&tx, EventType::PERSON, 2).is_ok());
 
@@ -175,7 +175,7 @@ pub mod tests {
         assert!(persons_res.is_ok());
 
         let mut person_map = PersonMap::new();
-        person_map.put(PersonId::from(1), PersonData::new("Hans", None, None));
+        person_map.put(PersonId::from(1), PersonData::new("Ann", None, None));
         let person_ref = (2, person_map);
         assert_eq!(persons_res.unwrap(), person_ref);
         assert!(tx.commit().is_ok());
@@ -204,14 +204,14 @@ pub mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
-        let person = PersonData::new("Hans", None, None);
-        let patch = PersonPatch::new(Some("Inge"), Patch::Value("Nowhere"), Patch::Value(PersonId::from(123)));
+        let person = PersonData::new("Ann", None, None);
+        let patch = PersonPatch::new(Some("Bob"), Patch::Value("nowhere"), Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, PersonId::from(1), &person).is_ok());
         assert!(aggregator.update(&tx, PersonId::from(1), &person, &patch).is_ok());
 
-        let event_ref1 = r#"{"1":{"name":"Hans"}}"#;
-        let event_ref2 = r#"{"1":{"name":"Inge","city":"Nowhere","spouse":123}}"#;
+        let event_ref1 = r#"{"1":{"name":"Ann"}}"#;
+        let event_ref2 = r#"{"1":{"name":"Bob","city":"nowhere","spouse":123}}"#;
         get_events_and_compare(&tx, 0, &[&event_ref1, &event_ref2]);
         get_events_and_compare(&tx, 1, &[&event_ref1, &event_ref2]);
         get_events_and_compare(&tx, 2, &[&event_ref2]);
@@ -224,9 +224,9 @@ pub mod tests {
         let mut conn = create_connection();
         let tx = conn.transaction().unwrap();
 
-        let person1 = PersonData::new("Hans", None, None);
-        let person2 = PersonData::new("Inge", None, None);
-        let patch2 = PersonPatch::new(Some("Fred"), Patch::Value("Nowhere"), Patch::Value(PersonId::from(123)));
+        let person1 = PersonData::new("Ann", None, None);
+        let person2 = PersonData::new("Bob", None, None);
+        let patch2 = PersonPatch::new(Some("Cam"), Patch::Value("nowhere"), Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, PersonId::from(1), &person1).is_ok());
         assert!(aggregator.insert(&tx, PersonId::from(2), &person2).is_ok());
@@ -239,7 +239,7 @@ pub mod tests {
         assert_eq!(result.unwrap(), 2); // Two events deleted
 
         get_events_and_compare(&tx, 0, &[
-            r#"{"2":{"name":"Fred","city":"Nowhere","spouse":123}}"#]);
+            r#"{"2":{"name":"Cam","city":"nowhere","spouse":123}}"#]);
         assert!(tx.commit().is_ok());
     }
 

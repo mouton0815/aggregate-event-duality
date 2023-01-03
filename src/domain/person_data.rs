@@ -40,15 +40,15 @@ mod tests {
 
     #[test]
     fn test_person1() {
-        let person_ref = PersonData::new("Hans", None, Some(PersonId::from(2)));
-        let json_ref = r#"{"name":"Hans","spouse":2}"#;
+        let person_ref = PersonData::new("Ann", None, Some(PersonId::from(2)));
+        let json_ref = r#"{"name":"Ann","spouse":2}"#;
         serde_and_verify(&person_ref, json_ref);
     }
 
     #[test]
     fn test_person2() {
-        let person_ref = PersonData::new("Inge", Some("City"), None);
-        let json_ref = r#"{"name":"Inge","city":"City"}"#;
+        let person_ref = PersonData::new("Bob", Some("City"), None);
+        let json_ref = r#"{"name":"Bob","city":"City"}"#;
         serde_and_verify(&person_ref, json_ref);
     }
 }

@@ -120,8 +120,8 @@ mod tests {
 
     #[test]
     fn test_insert() {
-        let person1 = PersonData::new("Hans", Some("Germany"), Some(PersonId::from(123)));
-        let person2 = PersonData::new("Inge", Some("Spain"), None);
+        let person1 = PersonData::new("Ann", Some("here"), Some(PersonId::from(123)));
+        let person2 = PersonData::new("Bob", Some("there"), None);
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -134,8 +134,8 @@ mod tests {
         assert!(tx.commit().is_ok());
 
         let ref_persons = [
-            (PersonId::from(1), &PersonData::new("Hans", Some("Germany"), Some(PersonId::from(123)))),
-            (PersonId::from(2), &PersonData::new("Inge", Some("Spain"), None))
+            (PersonId::from(1), &PersonData::new("Ann", Some("here"), Some(PersonId::from(123)))),
+            (PersonId::from(2), &PersonData::new("Bob", Some("there"), None))
         ];
         check_results(&mut conn, &ref_persons);
         check_single_result(&mut conn, ref_persons[0]);
@@ -144,9 +144,9 @@ mod tests {
 
     #[test]
     fn test_update() {
-        let person = PersonData::new("Hans", Some("Germany"), Some(PersonId::from(123)));
+        let person = PersonData::new("Ann", Some("here"), Some(PersonId::from(123)));
         let person_update = PersonPatch::new(None, Patch::Null, Patch::Value(PersonId::from(100)));
-        let person_ref = PersonData::new("Hans", None, Some(PersonId::from(100)));
+        let person_ref = PersonData::new("Ann", None, Some(PersonId::from(100)));
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let person = PersonData::new("Hans", Some("Germany"), Some(PersonId::from(123)));
+        let person = PersonData::new("Ann", Some("here"), Some(PersonId::from(123)));
 
         let mut conn = create_connection_and_table();
         let tx = conn.transaction().unwrap();

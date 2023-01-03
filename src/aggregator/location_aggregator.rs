@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn test_insert_with_spouse() {
         test_insert(
-            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("here"), Some(PersonId::from(123)))],
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]);
     }
@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn test_insert_no_spouse() {
         test_insert(
-            &[PersonData::new("Hans", Some("here"), None)],
+            &[PersonData::new("Ann", Some("here"), None)],
             Some(LocationData::new(1, 0)),
             &[r#"{"here":{"total":1,"married":0}}"#]);
     }
@@ -217,8 +217,8 @@ mod tests {
     fn test_insert_twice_no_spouse() {
         test_insert(
             &[
-                PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), None)],
+                PersonData::new("Ann", Some("here"), None),
+                PersonData::new("Bob", Some("here"), None)],
             Some(LocationData::new(2, 0)),
             &[
                 r#"{"here":{"total":1,"married":0}}"#,
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_update_keep_location_keep_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Absent, Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]); // No update event
@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn test_update_keep_location_set_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), None)],
+            &[PersonData::new("Ann", Some("here"), None)],
             PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn test_update_keep_location_delete_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Absent, Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn test_update_set_location_keep_spouse() {
         test_update(
-            &[PersonData::new("Hans", None, Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", None, Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]);
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_update_set_location_set_spouse() {
         test_update(
-            &[PersonData::new("Hans", None, None)],
+            &[PersonData::new("Ann", None, None)],
             PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[r#"{"here":{"total":1,"married":1}}"#]);
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn test_update_set_location_delete_spouse() {
         test_update(
-            &[PersonData::new("Hans", None, Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", None, Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
             &[r#"{"here":{"total":1,"married":0}}"#]);
@@ -304,8 +304,8 @@ mod tests {
     fn test_update_remove_location_keep_spouse() {
         test_update(
             &[
-                PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), Some(PersonId::from(456)))],
+                PersonData::new("Ann", Some("here"), None),
+                PersonData::new("Bob", Some("here"), Some(PersonId::from(456)))],
             PersonPatch::new(None, Patch::Null, Patch::Absent),
             Some(LocationData::new(1, 0)),
             &[
@@ -318,8 +318,8 @@ mod tests {
     fn test_update_remove_location_remove_spouse() {
         test_update(
             &[
-                PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), Some(PersonId::from(456)))],
+                PersonData::new("Ann", Some("here"), None),
+                PersonData::new("Bob", Some("here"), Some(PersonId::from(456)))],
             PersonPatch::new(None, Patch::Null, Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn test_update_remove_last_location() {
         test_update(
-            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("here"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Null, Patch::Absent),
             None,
             &[
@@ -343,8 +343,8 @@ mod tests {
     fn test_update_change_location_keep_spouse() {
         test_update(
             &[
-                PersonData::new("Hans", Some("there"), None),
-                PersonData::new("Inge", Some("there"), Some(PersonId::from(123)))],
+                PersonData::new("Ann", Some("there"), None),
+                PersonData::new("Bob", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[
@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn test_update_change_last_location_keep_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("there"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Absent),
             Some(LocationData::new(1, 1)),
             &[
@@ -370,8 +370,8 @@ mod tests {
     fn test_update_change_location_set_spouse() {
         test_update(
             &[
-                PersonData::new("Hans", Some("there"), None),
-                PersonData::new("Inge", Some("there"), None)],
+                PersonData::new("Ann", Some("there"), None),
+                PersonData::new("Bob", Some("there"), None)],
             PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[
@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn test_update_change_last_location_set_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("there"), None)],
+            &[PersonData::new("Ann", Some("there"), None)],
             PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123))),
             Some(LocationData::new(1, 1)),
             &[
@@ -397,8 +397,8 @@ mod tests {
     fn test_update_change_location_delete_spouse() {
         test_update(
             &[
-                PersonData::new("Hans", Some("there"), None),
-                PersonData::new("Inge", Some("there"), Some(PersonId::from(123)))],
+                PersonData::new("Ann", Some("there"), None),
+                PersonData::new("Bob", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn test_update_change_last_location_delete_spouse() {
         test_update(
-            &[PersonData::new("Hans", Some("there"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("there"), Some(PersonId::from(123)))],
             PersonPatch::new(None, Patch::Value("here"), Patch::Null),
             Some(LocationData::new(1, 0)),
             &[
@@ -441,8 +441,8 @@ mod tests {
     fn test_delete_not_last() {
         test_delete(
             &[
-                PersonData::new("Hans", Some("here"), None),
-                PersonData::new("Inge", Some("here"), Some(PersonId::from(123)))
+                PersonData::new("Ann", Some("here"), None),
+                PersonData::new("Bob", Some("here"), Some(PersonId::from(123)))
             ],
             Some(LocationData::new(1, 0)),
             &[
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn test_delete_last() {
         test_delete(
-            &[PersonData::new("Hans", Some("here"), Some(PersonId::from(123)))],
+            &[PersonData::new("Ann", Some("here"), Some(PersonId::from(123)))],
             None,
             &[
                 r#"{"here":{"total":1,"married":1}}"#,
@@ -509,7 +509,7 @@ mod tests {
         let tx = conn.transaction().unwrap();
 
         let dummy_id = PersonId::from(1);
-        let person = PersonData::new("Hans", Some("here"), None);
+        let person = PersonData::new("Ann", Some("here"), None);
         let patch = PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, dummy_id, &person).is_ok());
@@ -530,8 +530,8 @@ mod tests {
         let tx = conn.transaction().unwrap();
 
         let dummy_id = PersonId::from(1);
-        let person1 = PersonData::new("Hans", Some("here"), None);
-        let person2 = PersonData::new("Inge", Some("there"), None);
+        let person1 = PersonData::new("Ann", Some("here"), None);
+        let person2 = PersonData::new("Bob", Some("there"), None);
         let patch2 = PersonPatch::new(None, Patch::Value("here"), Patch::Value(PersonId::from(123)));
         let mut aggregator = create_aggregator();
         assert!(aggregator.insert(&tx, dummy_id, &person1).is_ok());

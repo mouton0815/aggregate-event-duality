@@ -192,28 +192,28 @@ mod tests {
     #[test]
     fn test_for_insert() {
         let patch = for_insert(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 
     #[test]
     fn test_for_insert_no_spouse() {
         let patch = for_insert(
-            PersonData::new("Hans", Some("Here"), None));
+            PersonData::new("Ann", Some("here"), None));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
     fn test_for_insert_initial_no_spouse() {
         let patch = for_insert_initial(
-            PersonData::new("Hans", Some("Here"), None));
+            PersonData::new("Ann", Some("here"), None));
         assert_eq!(patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }
 
     #[test]
     fn test_for_insert_no_location() {
         let patch = for_insert(
-            PersonData::new("Hans", None, None));
+            PersonData::new("Ann", None, None));
         assert_eq!(patch, None); // No location, no result
     }
 
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_for_update_no_location() {
         let patch = for_update(
-            PersonData::new("Hans", None, Some(PersonId::from(123))),
+            PersonData::new("Ann", None, Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Absent, Patch::Absent));
         assert_eq!(patch, None);
     }
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_for_update_keep_location_keep_spouse() {
         let patch = for_update(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Absent, Patch::Absent));
         assert_eq!(patch, None);
     }
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn test_for_update_keep_location_remove_spouse() {
         let patch = for_update(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Absent, Patch::Null));
         assert_eq!(patch, Some(LocationPatch::new(None, Some(2))));
     }
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_for_update_keep_location_remove_spouse_below_zero() {
         let patch = for_update_initial( // Not realistic as a location exists, but anyway
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Absent, Patch::Null));
         assert_eq!(patch, None);
     }
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn test_for_update_keep_location_set_spouse() {
         let patch = for_update(
-            PersonData::new("Hans", Some("Here"), None),
+            PersonData::new("Ann", Some("here"), None),
             PersonPatch::new(None, Patch::Absent, Patch::Value(PersonId::from(123))));
         assert_eq!(patch, Some(LocationPatch::new(None, Some(4))));
     }
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn test_for_update_remove_location() {
         let patch = for_update(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Null, Patch::Absent));
         assert_eq!(patch, None);
     }
@@ -282,16 +282,16 @@ mod tests {
     #[test]
     fn test_for_update_set_location() {
         let patch = for_update(
-            PersonData::new("Hans", None, Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("Here"), Patch::Absent));
+            PersonData::new("Ann", None, Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Absent));
         assert_eq!(patch, None);
     }
 
     #[test]
     fn test_for_update_change_location() {
         let patch = for_update(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("There"), Patch::Absent));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("there"), Patch::Absent));
         assert_eq!(patch, None);
     }
 
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_for_change_no_location() {
         let patch = for_change(
-            PersonData::new("Hans", None, Some(PersonId::from(123))),
+            PersonData::new("Ann", None, Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Absent, Patch::Absent));
         assert_eq!(patch, None);
     }
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn test_for_change_keep_location() {
         let patch = for_change(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Absent, Patch::Absent));
         assert_eq!(patch, None);
     }
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn test_for_change_remove_location() {
         let patch = for_change(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
             PersonPatch::new(None, Patch::Null, Patch::Absent));
         assert_eq!(patch, None);
     }
@@ -336,80 +336,80 @@ mod tests {
     #[test]
     fn test_for_change_set_location() {
         let patch = for_change(
-            PersonData::new("Hans", None, Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("Here"), Patch::Absent));
+            PersonData::new("Ann", None, Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Absent));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 
     #[test]
     fn test_for_change_set_location_no_spouse() {
         let patch = for_change(
-            PersonData::new("Hans", None, None),
-            PersonPatch::new(None, Patch::Value("Here"), Patch::Absent));
+            PersonData::new("Ann", None, None),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Absent));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
     fn test_for_change_set_location_initial_no_spouse() {
         let patch = for_change_initial(
-            PersonData::new("Hans", None, None),
-            PersonPatch::new(None, Patch::Value("Here"), Patch::Absent));
+            PersonData::new("Ann", None, None),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Absent));
         assert_eq!(patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }
 
     #[test]
     fn test_for_change_set_location_remove_spouse() {
         let patch = for_change(
-            PersonData::new("Hans", None, Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("Here"), Patch::Null));
+            PersonData::new("Ann", None, Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Null));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
     fn test_for_change_set_location_initial_remove_spouse() {
         let patch = for_change_initial(
-            PersonData::new("Hans", None, Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("Here"), Patch::Null));
+            PersonData::new("Ann", None, Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("here"), Patch::Null));
         assert_eq!(patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }
 
     #[test]
     fn test_for_change_alter_location_no_spouse() {
         let patch = for_change(
-            PersonData::new("Hans", Some("Here"), None),
-            PersonPatch::new(None, Patch::Value("There"), Patch::Absent));
+            PersonData::new("Ann", Some("here"), None),
+            PersonPatch::new(None, Patch::Value("there"), Patch::Absent));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
     fn test_for_change_alter_location_keep_spouse() {
         let patch = for_change(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("There"), Patch::Absent));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("there"), Patch::Absent));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 
     #[test]
     fn test_for_change_alter_location_set_spouse() {
         let patch = for_change(
-            PersonData::new("Hans", Some("Here"), None),
-            PersonPatch::new(None, Patch::Value("There"), Patch::Value(PersonId::from(123))));
+            PersonData::new("Ann", Some("here"), None),
+            PersonPatch::new(None, Patch::Value("there"), Patch::Value(PersonId::from(123))));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), Some(4))));
     }
 
     #[test]
     fn test_for_change_alter_location_remove_spouse() {
         let patch = for_change(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("There"), Patch::Null));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("there"), Patch::Null));
         assert_eq!(patch, Some(LocationPatch::new(Some(2), None)));
     }
 
     #[test]
     fn test_for_change_alter_location_initial_remove_spouse() {
         let patch = for_change_initial(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))),
-            PersonPatch::new(None, Patch::Value("There"), Patch::Null));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))),
+            PersonPatch::new(None, Patch::Value("there"), Patch::Null));
         assert_eq!(patch, Some(LocationPatch::new(Some(1), Some(0)))); // Initial event, all values are set
     }
 
@@ -430,28 +430,28 @@ mod tests {
     #[test]
     fn test_for_delete() {
         let patch = for_delete(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))));
         assert_eq!(patch, Some(LocationPatch::new(Some(0), Some(2))));
     }
 
     #[test]
     fn test_for_delete_no_spouse() {
         let patch = for_delete(
-            PersonData::new("Hans", Some("Here"), None));
+            PersonData::new("Ann", Some("here"), None));
         assert_eq!(patch, Some(LocationPatch::new(Some(0), None)));
     }
 
     #[test]
     fn test_for_delete_no_location() {
         let patch = for_delete(
-            PersonData::new("Hans", None, None));
+            PersonData::new("Ann", None, None));
         assert_eq!(patch, None);
     }
 
     #[test]
     fn test_for_delete_below_zero() {
         let patch = for_delete_initial(
-            PersonData::new("Hans", Some("Here"), Some(PersonId::from(123))));
+            PersonData::new("Ann", Some("here"), Some(PersonId::from(123))));
         assert_eq!(patch, None);
     }
 }
