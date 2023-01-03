@@ -3,32 +3,31 @@
 This project demonstrates how a service can provide both aggregates and their corresponding change events
 in a consistent way.
 
-An _aggregate_ is an entity that is stored and retrieved as a whole.
-An example aggregate may contain all available information about a person.
-Another aggregate may provide statistical data about all persons in a city, such as total number of persons
-and the number of married persons.
+An _aggregate_ is an entity that is stored and retrieved as a whole. The project showcases two example aggregates:
+* A "person" aggregate provides information about a person.
+* A "location" aggregates provides statistical data about all persons in a city.
 
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers via traditional HTTP ``GET`` requests.
 
-| #   | Input operation                                   | Resulting person aggregates                                   |
-|-----|---------------------------------------------------|---------------------------------------------------------------|
-| 1   | ``POST /persons {"name":"Hans","city":"Berlin"}`` | ``{"1":{"name":"Hans","city":"Berlin"}}``                     |
-| 2   | ``POST /persons {"name":"Inge"}``                 | ``{"1":{"name":"Hans","city":"Berlin"},"2":{"name":"Inge"}}`` |
-| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"name":"Hans"},"2":{"name":"Inge"}}``                 |
-| 4   | ``DELETE /persons/1``                             | ``{"2":{"name":"Inge"}}``                                     |
+| #   | Input operation                                   | Resulting person aggregates                                 |
+|-----|---------------------------------------------------|-------------------------------------------------------------|
+| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}``  | ``{"1":{"name":"Ann","city":"Berlin"}}``                    |
+| 2   | ``POST /persons {"name":"Bob"}``                  | ``{"1":{"name":"Ann","city":"Berlin"},"2":{"name":"Bob"}}`` |
+| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"name":"Ann"},"2":{"name":"Bob"}}``                 |
+| 4   | ``DELETE /persons/1``                             | ``{"2":{"name":"Bob"}}``                                    |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.
 The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386)
 (not to be confused with [JSON Patch](https://jsonpatch.com)).
 
-| #   | Input operation                                   | Resulting JSON Merge Patch event           |
-|-----|---------------------------------------------------|--------------------------------------------|
-| 1   | ``POST /persons {"name":"Hans","city":"Berlin"}`` | ``{"1":{"name":"Hans","city":"Berlin"}}``  |
-| 2   | ``POST /persons {"name":"Inge"}``                 | ``{"2":{"name":"Inge"}}``                  |
-| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"city":null}}``                    |
-| 4   | ``DELETE /persons/1``                             | ``{"1":null}``                             |
+| #   | Input operation                                   | Resulting JSON Merge Patch event         |
+|-----|---------------------------------------------------|------------------------------------------|
+| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}``  | ``{"1":{"name":"Ann","city":"Berlin"}}`` |
+| 2   | ``POST /persons {"name":"Bob"}``                  | ``{"2":{"name":"Bob"}}``                 |
+| 3   | ``PATCH /persons/1 {"city":null}``                | ``{"1":{"city":null}}``                  |
+| 4   | ``DELETE /persons/1``                             | ``{"1":null}``                           |
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
@@ -108,8 +107,8 @@ To build aggregates and product the corresponding change events,
 you need to create/update/delete persons via the REST endpoint of the server.
 Example requests:
 ```shell
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Hans","city":"Berlin"}' http://localhost:3000/persons
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Inge"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Ann","city":"Berlin"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Bob"}' http://localhost:3000/persons
 curl -X PATCH -H 'Content-Type: application/json' -d '{"city":null}' http://localhost:3000/persons/1
 curl -X DELETE http://localhost:3000/persons/1
 ```

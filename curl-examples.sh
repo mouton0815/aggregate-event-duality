@@ -1,6 +1,6 @@
 #!/bin/sh
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Hans","city":"Berlin"}' http://localhost:3000/persons
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Inge","city":"Munich"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Ann","city":"Berlin"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Bob","city":"Munich"}' http://localhost:3000/persons
 curl -X PATCH -H 'Content-Type: application/json' -d '{"spouse":2}' http://localhost:3000/persons/1
 curl -X PATCH -H 'Content-Type: application/json' -d '{"city":"Berlin","spouse":1}' http://localhost:3000/persons/2
 curl -X PATCH -H 'Content-Type: application/json' -d '{"city":null,"spouse":null}' http://localhost:3000/persons/1
