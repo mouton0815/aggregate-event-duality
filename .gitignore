@@ -1,6 +1,7 @@
 /target
 .idea/
 Cargo.lock
+TODO.txt
 database.db
 
 /node/node_modules
