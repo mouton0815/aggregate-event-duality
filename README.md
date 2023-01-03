@@ -98,7 +98,7 @@ so the aggregates are lost on restart of the server. This can be changed by repl
 argument of the ``Aggregator`` constructor in [server.rs](src/bin/server.rs) by a path to a database file,
 for example ``"database.db"``.
 
-When the server is running, you can start the consumer in another shell:
+When the server is running, you can start the example consumer in another shell:
 ```shell
 node node/consumer.js
 ```
