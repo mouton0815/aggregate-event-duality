@@ -39,10 +39,10 @@ mod tests {
     #[test]
     fn test_put() {
         let mut map = PersonMap::new();
-        map.put(PersonId::from(1), PersonData::new("Ann", Some("Berlin"), Some(PersonId::from(2))));
+        map.put(PersonId::from(1), PersonData::new("Ann", Some("here"), Some(PersonId::from(2))));
         map.put(PersonId::from(2), PersonData::new("Bob", None, Some(PersonId::from(1))));
 
-        let json_ref = r#"{"1":{"name":"Ann","city":"Berlin","spouse":2},"2":{"name":"Bob","spouse":1}}"#;
+        let json_ref = r#"{"1":{"name":"Ann","city":"here","spouse":2},"2":{"name":"Bob","spouse":1}}"#;
         serde_and_verify(&map, json_ref);
     }
 

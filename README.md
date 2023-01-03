@@ -10,26 +10,26 @@ An _aggregate_ is an entity that is stored and retrieved as a whole. The project
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers as JSON objects via HTTP ``GET`` requests.
 
-| #   | Input operation                                  | Resulting person aggregates                                                           | Resulting location aggregates |
-|-----|--------------------------------------------------|---------------------------------------------------------------------------------------|-------------------------------|
-| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}`` | ``{"1":{"name":"Ann","city":"Berlin"}}``                                              | ``{"Berlin":{"total":1}}``    |
-| 2   | ``POST /persons {"name":"Bob"}``                 | ``{"1":{"name":"Ann","city":"Berlin"}}``<br/>``{"2":{"name":"Bob"}}``                 | ``{"Berlin":{"total":1}}``    |
-| 3   | ``PATCH /persons/2 {"city":"Berlin"}``           | ``{"1":{"name":"Ann","city":"Berlin"}}``<br/>``{"2":{"name":"Bob","city":"Berlin"}}`` | ``{"Berlin":{"total":2}}``    |
-| 4   | ``PATCH /persons/1 {"city":null}``               | ``{"1":{"name":"Ann"}}``<br/>``{"2":{"name":"Bob","city":"Berlin"}}``                 | ``{"Berlin":{"total":1}}``    |
-| 5   | ``DELETE /persons/2``                            | ``{"1":{"name":"Ann"}}``                                                              | (none)                        |
+| #   | Input operation                                 | Resulting person aggregates                                                       | Resulting location aggregates |
+|-----|-------------------------------------------------|-----------------------------------------------------------------------------------|-------------------------------|
+| 1   | ``POST /persons {"name":"Ann","city":"Rome"}``  | ``{"1":{"name":"Ann","city":"Rome"}}``                                            | ``{"Rome":{"total":1}}``      |
+| 2   | ``POST /persons {"name":"Bob"}``                | ``{"1":{"name":"Ann","city":"Rome"}}``<br/>``{"2":{"name":"Bob"}}``               | ``{"Rome":{"total":1}}``      |
+| 3   | ``PATCH /persons/2 {"city":"Rome"}``            | ``{"1":{"name":"Ann","city":"Rome"}}``<br/>``{"2":{"name":"Bob","city":"Rome"}}`` | ``{"Rome":{"total":2}}``      |
+| 4   | ``PATCH /persons/1 {"city":null}``              | ``{"1":{"name":"Ann"}}``<br/>``{"2":{"name":"Bob","city":"Rome"}}``               | ``{"Rome":{"total":1}}``      |
+| 5   | ``DELETE /persons/2``                           | ``{"1":{"name":"Ann"}}``                                                          | (none)                        |
 
 Every _change event_ encodes the difference between two states of an aggregate.
 A consumer can rebuild the aggregate by listening to the stream of change events.
 The protocol of choice is [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386)
 (not to be confused with [JSON Patch](https://jsonpatch.com)).
 
-| #   | Input operation                                  | Resulting person event                   | Resulting location event   |
-|-----|--------------------------------------------------|------------------------------------------|----------------------------|
-| 1   | ``POST /persons {"name":"Ann","city":"Berlin"}`` | ``{"1":{"name":"Ann","city":"Berlin"}}`` | ``{"Berlin":{"total":1}}`` |
-| 2   | ``POST /persons {"name":"Bob"}``                 | ``{"2":{"name":"Bob"}}``                 | (none)                     |
-| 3   | ``PATCH /persons/2 {"city":"Berlin"}``           | ``{"2":{"city":"Berlin"}}``              | ``{"Berlin":{"total":2}}`` |
-| 4   | ``PATCH /persons/1 {"city":null}``               | ``{"1":{"city":null}}``                  | ``{"Berlin":{"total":1}}`` |
-| 5   | ``DELETE /persons/1``                            | ``{"1":null}``                           | ``{"Berlin":null}``        |
+| #   | Input operation                                | Resulting person event                 | Resulting location event |
+|-----|------------------------------------------------|----------------------------------------|--------------------------|
+| 1   | ``POST /persons {"name":"Ann","city":"Rome"}`` | ``{"1":{"name":"Ann","city":"Rome"}}`` | ``{"Rome":{"total":1}}`` |
+| 2   | ``POST /persons {"name":"Bob"}``               | ``{"2":{"name":"Bob"}}``               | (none)                   |
+| 3   | ``PATCH /persons/2 {"city":"Rome"}``           | ``{"2":{"city":"Rome"}}``              | ``{"Rome":{"total":2}}`` |
+| 4   | ``PATCH /persons/1 {"city":null}``             | ``{"1":{"city":null}}``                | ``{"Rome":{"total":1}}`` |
+| 5   | ``DELETE /persons/1``                          | ``{"1":null}``                         | ``{"Rome":null}``        |
 
 In contrast to [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html),
 the consumer does not need to read the entire event stream.
@@ -109,7 +109,7 @@ To build aggregates and product the corresponding change events,
 you need to create/update/delete persons via the REST endpoint of the server.
 Example requests:
 ```shell
-curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Ann","city":"Berlin"}' http://localhost:3000/persons
+curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Ann","city":"Rome"}' http://localhost:3000/persons
 curl -X POST  -H 'Content-Type: application/json' -d '{"name":"Bob"}' http://localhost:3000/persons
 curl -X PATCH -H 'Content-Type: application/json' -d '{"city":null}' http://localhost:3000/persons/1
 curl -X DELETE http://localhost:3000/persons/1
