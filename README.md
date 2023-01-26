@@ -5,7 +5,7 @@ in a consistent way.
 
 An _aggregate_ is an entity that is stored and retrieved as a whole. The project showcases two example aggregates:
 * A "person" aggregate provides information about a person.
-* A "location" aggregates provides statistical data about all persons in a city.
+* A "location" aggregate provides statistical data about all persons in a city.
 
 Aggregates can be built from any source. In this project, they are created via REST requests, as shown in the table below.
 Aggregates are delivered to consumers as JSON objects via HTTP ``GET`` requests.
