@@ -1,107 +1,141 @@
 use std::convert::Infallible;
 use std::time::Duration;
+use axum::http::StatusCode;
+use axum::{extract::State, Json, TypedHeader};
+use axum::extract::Path;
+use axum::response::Sse;
+use axum::response::sse::Event;
+use futures::Stream;
 use serde::{Serialize, Deserialize};
 use futures_util::StreamExt;
-use warp::http::StatusCode;
-use warp::{reply, Reply, sse};
-use warp::sse::Event;
 use crate::aggregator::aggregator_facade::MutexAggregator;
 use crate::domain::event_type::EventType;
+use crate::domain::location_map::LocationMap;
 use crate::domain::person_data::PersonData;
 use crate::domain::person_id::PersonId;
+use crate::domain::person_map::PersonMap;
 use crate::domain::person_patch::PersonPatch;
 use crate::rest::event_fetcher::EventFetcher;
+use crate::rest::location_header::LocationHeader;
+use crate::rest::revision_header::RevisionHeader;
 use crate::util::scheduled_stream::ScheduledStream;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
-struct ErrorResult {
+pub struct ErrorResult {
     error: String
 }
 
-pub async fn post_person(aggregator: MutexAggregator, path: &str, person: PersonData) -> Result<Box<dyn Reply>, Infallible> {
+type PostResponse = Result<(StatusCode, TypedHeader<LocationHeader>, Json<PersonData>), (StatusCode, Json<ErrorResult>)>;
+
+pub async fn post_person(State(aggregator): State<MutexAggregator>, Json(person): Json<PersonData>) -> PostResponse {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.insert(&person) {
         Ok(result) => {
             let (person_id, person_data) = result;
-            let location = format!("/{}/{}", path, person_id);
-            let response = reply::json(&person_data);
-            let response = reply::with_status(response, StatusCode::CREATED);
-            let response = reply::with_header(response,"Location", location);
-            Ok(Box::new(response))
+            let location = format!("/persons/{}", person_id);
+            let location_header = LocationHeader::from(location);
+            Ok((StatusCode::CREATED, TypedHeader(location_header), Json(person_data)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(message)))
         }
     }
 }
 
-pub async fn patch_person(aggregator: MutexAggregator, person_id: PersonId, person: PersonPatch) -> Result<Box<dyn Reply>, Infallible> {
+type PatchResponse = Result<Json<PersonData>, (StatusCode, Json<ErrorResult>)>;
+
+pub async fn patch_person(State(aggregator): State<MutexAggregator>, Path(person_id): Path<PersonId>, Json(person): Json<PersonPatch>) -> PatchResponse {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.update(person_id, &person) {
         Ok(result) => {
             match result {
-                Some(person) => Ok(Box::new(reply::json(&person))),
-                None => Ok(Box::new(reply::with_status("Person not found", StatusCode::NOT_FOUND)))
+                Some(person) => Ok(Json(person)),
+                None => {
+                    let message = ErrorResult{ error: "Person not found".to_string() };
+                    Err((StatusCode::NOT_FOUND, Json(message)))
+                }
             }
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(message)))
         }
     }
 }
 
-pub async fn delete_person(aggregator: MutexAggregator, person_id: PersonId) -> Result<Box<dyn Reply>, Infallible> {
+type DeleteResponse = Result<StatusCode, (StatusCode, Json<ErrorResult>)>;
+
+pub async fn delete_person(State(aggregator): State<MutexAggregator>, Path(person_id): Path<PersonId>) -> DeleteResponse {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.delete(person_id) {
         Ok(result) => {
             match result {
-                true => Ok(Box::new(reply())),
-                false => Ok(Box::new(reply::with_status("Person not found", StatusCode::NOT_FOUND)))
+                true => Ok(StatusCode::OK),
+                false => {
+                    let message = ErrorResult{ error: "Person not found".to_string() };
+                    Err((StatusCode::NOT_FOUND, Json(message)))
+                }
             }
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(message)))
         }
     }
 }
 
-pub async fn get_persons(aggregator: MutexAggregator, revision_header_name: &str) -> Result<Box<dyn Reply>, Infallible> {
+type GetPersonsResponse = Result<(TypedHeader<RevisionHeader>, Json<PersonMap>), (StatusCode, Json<ErrorResult>)>;
+
+pub async fn get_persons(State(aggregator): State<MutexAggregator>) -> GetPersonsResponse {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_persons() {
         Ok(result) => {
             let (revision, persons) = result;
-            Ok(Box::new(reply::with_header(reply::json(&persons), revision_header_name, revision)))
+            Ok((TypedHeader(RevisionHeader::from(revision)), Json(persons)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(message)))
         }
     }
 }
 
-pub async fn get_locations(aggregator: MutexAggregator, revision_header_name: &str) -> Result<Box<dyn Reply>, Infallible> {
+type GetLocationsResponse = Result<(TypedHeader<RevisionHeader>, Json<LocationMap>), (StatusCode, Json<ErrorResult>)>;
+
+pub async fn get_locations(State(aggregator): State<MutexAggregator>) -> GetLocationsResponse {
     let mut aggregator = aggregator.lock().unwrap();
     return match aggregator.get_locations() {
         Ok(result) => {
             let (revision, locations) = result;
-            Ok(Box::new(reply::with_header(reply::json(&locations), revision_header_name, revision)))
+            Ok((TypedHeader(RevisionHeader::from(revision)), Json(locations)))
         },
         Err(error) => {
             let message = ErrorResult{ error: error.to_string() };
-            Ok(Box::new(reply::with_status(reply::json(&message), StatusCode::INTERNAL_SERVER_ERROR)))
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(message)))
         }
     }
 }
 
-pub async fn get_events(aggregator: MutexAggregator, event_type: EventType, repeat_every_secs: u64, from_revision: Option<usize>) -> Result<impl Reply, Infallible> {
-    let from_revision = from_revision.unwrap_or(1);
-    let fetcher = Box::new(EventFetcher::new(aggregator, event_type, from_revision));
-    let stream = ScheduledStream::new(Duration::from_secs(repeat_every_secs), fetcher);
+
+// Note: type GetEventsResponse = Sse<impl Stream<Item = Result<Event, Infallible>>> does not work as feature is unstable
+
+pub async fn get_person_events(State(aggregator): State<MutexAggregator>, State(repeat_every_seconds): State<u64>, TypedHeader(from_revision): TypedHeader<RevisionHeader>)
+    -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    get_events(aggregator, EventType::PERSON, repeat_every_seconds, from_revision)
+}
+
+pub async fn get_location_events(State(aggregator): State<MutexAggregator>, State(repeat_every_seconds): State<u64>, TypedHeader(from_revision): TypedHeader<RevisionHeader>)
+    -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    get_events(aggregator, EventType::LOCATION, repeat_every_seconds, from_revision)
+}
+
+fn get_events(aggregator: MutexAggregator, event_type: EventType, repeat_every_seconds: u64, from_revision: RevisionHeader)
+    -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let fetcher = Box::new(EventFetcher::new(aggregator, event_type, from_revision.into()));
+    let stream = ScheduledStream::new(Duration::from_secs(repeat_every_seconds), fetcher);
     let stream = stream.map(move |item| {
         Ok::<Event, Infallible>(Event::default().data(item))
     });
-    Ok(sse::reply(stream))
+    Sse::new(stream)
 }

@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let deletion_task: MutexDeletionTask<rusqlite::Error> = aggregator.clone();
     let delete_scheduler = spawn_deletion_scheduler(&deletion_task, rx1, period);
 
-    let http_server = spawn_http_server(&aggregator, rx2, 5);
+    let http_server = spawn_http_server(aggregator.clone(), rx2, 5);
 
     signal::ctrl_c().await?;
     debug!("Termination signal received");
